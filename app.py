@@ -1,8 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from dotenv import load_dotenv
 from supabase import create_client
+from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import requests
+import atexit
 from config import *
 
 load_dotenv()
@@ -14,6 +16,33 @@ supabase = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_KEY")
 )
+
+# ESPN event ID stored on the tournament row as external_id
+ESPN_LEADERBOARD_URL = "https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event={event_id}"
+
+# ── Scheduler — auto-refresh scores every 15 min ─────────────────────────────
+
+def scheduled_score_refresh():
+    """Called by APScheduler every 15 minutes."""
+    with app.app_context():
+        tournament = get_current_tournament()
+        if not tournament or not tournament.get("external_id"):
+            return
+        scores = fetch_live_scores(tournament["external_id"])
+        for entry in scores:
+            supabase.table("scores").upsert({
+                "tournament_id": tournament["id"],
+                "player_id": entry["player_id"],
+                "score_to_par": entry["score_to_par"],
+                "round": entry["round"],
+                "cut": entry.get("cut", False)
+            }, on_conflict="tournament_id,player_id").execute()
+        print(f"[scheduler] refreshed {len(scores)} scores for {tournament['name']}")
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(scheduled_score_refresh, "interval", minutes=SCORE_REFRESH_MINUTES)
+scheduler.start()
+atexit.register(lambda: scheduler.shutdown())
 
 # ── Routes ──────────────────────────────────────────────────────────────────
 
@@ -50,7 +79,6 @@ def lineup(team_id):
         if len(starters) != STARTERS_PER_WEEK:
             return f"Pick exactly {STARTERS_PER_WEEK} starters.", 400
 
-        # Clear old lineup for this tournament
         if current_tournament:
             supabase.table("lineups").delete().eq("team_id", team_id).eq("tournament_id", current_tournament["id"]).execute()
             for player_id in starters:
@@ -61,7 +89,6 @@ def lineup(team_id):
                 }).execute()
         return redirect(url_for("scoreboard"))
 
-    # Get current lineup
     current_lineup = []
     if current_tournament:
         current_lineup = [
@@ -114,14 +141,16 @@ def draft_pick():
 
 @app.route("/api/refresh-scores")
 def refresh_scores():
-    """Pull live scores from TheSportsDB. Called by cron."""
+    """Manually trigger a score refresh. Also called by scheduler."""
     tournament = get_current_tournament()
     if not tournament:
         return jsonify({"status": "no active tournament"})
+    if not tournament.get("external_id"):
+        return jsonify({"status": "no ESPN event ID set on tournament"})
 
     scores = fetch_live_scores(tournament["external_id"])
     if not scores:
-        return jsonify({"status": "no scores returned"})
+        return jsonify({"status": "no scores returned (tournament may not have started)"})
 
     for entry in scores:
         supabase.table("scores").upsert({
@@ -138,13 +167,13 @@ def refresh_scores():
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def get_current_tournament():
-    """Return the active or most recent tournament."""
+    """Return the active tournament."""
     result = supabase.table("tournaments").select("*").eq("active", True).limit(1).execute().data
     return result[0] if result else None
 
 
 def compute_team_totals(tournament_id):
-    """Sum each team's 5 starters' scores for the current tournament."""
+    """Sum each team's starters' scores."""
     lineups = supabase.table("lineups").select("team_id, player_id").eq("tournament_id", tournament_id).execute().data
     scores_raw = supabase.table("scores").select("player_id, score_to_par").eq("tournament_id", tournament_id).execute().data
     score_map = {s["player_id"]: s["score_to_par"] for s in scores_raw}
@@ -161,22 +190,62 @@ def compute_team_totals(tournament_id):
     return sorted([
         {"team": team_map[tid], "total": total}
         for tid, total in totals.items()
-    ], key=lambda x: x["total"])  # lower is better
+    ], key=lambda x: x["total"])
 
 
-def fetch_live_scores(external_tournament_id):
-    """Fetch scores from TheSportsDB. Returns list of score dicts."""
-    api_key = os.getenv("SPORTSDB_API_KEY", "3")
-    url = f"https://www.thesportsdb.com/api/v1/json/{api_key}/eventsseason.php?id={external_tournament_id}"
+def fetch_live_scores(espn_event_id):
+    """
+    Fetch live scores from ESPN API.
+    Returns list of dicts: {player_id, score_to_par, round, cut}
+    Matches players by name against our players table.
+    """
+    url = ESPN_LEADERBOARD_URL.format(event_id=espn_event_id)
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
         data = resp.json()
-        # TheSportsDB returns events; map to our score format
-        # This will need adjustment once you see the actual API response shape
-        return []  # TODO: map API response to score dicts
     except Exception as e:
-        print(f"Score fetch error: {e}")
+        print(f"ESPN fetch error: {e}")
         return []
+
+    # Get our player list for name matching
+    our_players = supabase.table("players").select("id, name").execute().data
+    name_map = {p["name"].lower(): p["id"] for p in our_players}
+
+    results = []
+    events = data.get("events", [])
+    if not events:
+        return []
+
+    competitors = events[0].get("competitions", [{}])[0].get("competitors", [])
+    current_round = events[0].get("status", {}).get("period", 1)
+
+    for comp in competitors:
+        athlete = comp.get("athlete", {})
+        full_name = athlete.get("displayName", "").lower()
+        player_id = name_map.get(full_name)
+        if not player_id:
+            continue  # player not in our pool, skip
+
+        score_val = comp.get("score", {}).get("value", 0)
+        try:
+            score_to_par = int(score_val) if score_val is not None else 0
+        except (ValueError, TypeError):
+            score_to_par = 0
+
+        status = comp.get("status", {}).get("type", {}).get("name", "")
+        did_cut = "CUT" in status.upper()
+        if did_cut:
+            score_to_par = 10  # missed cut penalty
+
+        results.append({
+            "player_id": player_id,
+            "score_to_par": score_to_par,
+            "round": current_round,
+            "cut": did_cut
+        })
+
+    return results
 
 
 if __name__ == "__main__":
