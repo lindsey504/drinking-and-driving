@@ -30,11 +30,39 @@
 <p>No teams yet. Time to draft!</p>
 {% endif %}
 
-<h2>Recent Tournaments</h2>
+{% if trophy_case %}
+<h2>🏆 Trophy Case</h2>
+<table class="standings">
+  <thead>
+    <tr>
+      <th>Tournament</th>
+      <th>Winner</th>
+      <th>Manager</th>
+      <th>Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for trophy in trophy_case %}
+    <tr>
+      <td>{{ trophy.tournament }}</td>
+      <td>🏆 {{ trophy.team }}</td>
+      <td>{{ trophy.manager }}</td>
+      <td>{{ trophy.score }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>Schedule</h2>
 {% if tournaments %}
 <ul class="tournament-list">
   {% for t in tournaments %}
-  <li>{{ t.name }} — {{ t.start_date }}</li>
+  <li>
+    {% if t.active %}<strong>🟢 LIVE — {% endif %}
+    {{ t.name }}{% if t.active %}</strong>{% endif %}
+    — {{ t.start_date }} to {{ t.end_date }}
+  </li>
   {% endfor %}
 </ul>
 {% else %}

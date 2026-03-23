@@ -53,10 +53,28 @@ def rules():
 
 @app.route("/")
 def index():
-    """Homepage — season standings."""
+    """Homepage — season standings + trophy case."""
     teams = supabase.table("teams").select("*").execute().data
     tournaments = supabase.table("tournaments").select("*").order("start_date", desc=True).execute().data
-    return render_template("index.html", teams=teams, tournaments=tournaments, league=LEAGUE_NAME)
+
+    # Build trophy case from completed tournaments (has scores, not active)
+    trophy_case = []
+    completed = [t for t in tournaments if not t.get("active")]
+    for t in completed:
+        totals = compute_team_totals(t["id"])
+        if totals:
+            winner = totals[0]  # lowest score wins
+            score = winner["total"]
+            score_str = f"+{score}" if score > 0 else str(score)
+            trophy_case.append({
+                "tournament": t["name"],
+                "team": winner["team"]["name"],
+                "manager": winner["team"]["manager"],
+                "score": score_str
+            })
+
+    return render_template("index.html", teams=teams, tournaments=tournaments,
+                           trophy_case=trophy_case, league=LEAGUE_NAME)
 
 
 @app.route("/roster/<team_id>")
