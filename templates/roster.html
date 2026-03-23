@@ -12,6 +12,7 @@
       <th>Player</th>
       <th>World Rank</th>
       <th>Country</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -20,6 +21,11 @@
       <td>{{ row.players.name }}</td>
       <td>{{ row.players.world_rank or '—' }}</td>
       <td>{{ row.players.country or '—' }}</td>
+      <td>
+        <form method="POST" action="/roster/{{ team.id }}/drop/{{ row.id }}" onsubmit="return confirm('Drop {{ row.players.name }}?')">
+          <button type="submit" class="btn-drop">Drop</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

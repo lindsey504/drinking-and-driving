@@ -115,6 +115,13 @@ def scoreboard():
                            team_totals=team_totals, is_major=is_major, multiplier=MAJORS_MULTIPLIER)
 
 
+@app.route("/roster/<team_id>/drop/<roster_id>", methods=["POST"])
+def drop_player(team_id, roster_id):
+    """Drop a player from a team's roster."""
+    supabase.table("roster").delete().eq("id", roster_id).eq("team_id", team_id).execute()
+    return redirect(url_for("roster", team_id=team_id))
+
+
 @app.route("/draft")
 def draft():
     """Draft board — shows available players."""
