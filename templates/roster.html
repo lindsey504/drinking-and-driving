@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>{{ team.name }}</h1>
+<p>Manager: {{ team.manager }}</p>
+<p><a href="/lineup/{{ team.id }}">Set this week's lineup →</a></p>
+
+<h2>Roster ({{ players|length }}/{{ 15 }})</h2>
+<table class="roster">
+  <thead>
+    <tr>
+      <th>Player</th>
+      <th>World Rank</th>
+      <th>Country</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in players %}
+    <tr>
+      <td>{{ row.players.name }}</td>
+      <td>{{ row.players.world_rank or '—' }}</td>
+      <td>{{ row.players.country or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

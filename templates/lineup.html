@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Set Lineup — {{ team.name }}</h1>
+{% if tournament %}
+  <p>Tournament: <strong>{{ tournament.name }}</strong></p>
+  <p>Pick {{ starters_needed }} starters from your roster.</p>
+
+  <form method="POST">
+    <table class="roster">
+      <thead>
+        <tr>
+          <th>Start?</th>
+          <th>Player</th>
+          <th>World Rank</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in roster %}
+        <tr>
+          <td>
+            <input type="checkbox" name="starters" value="{{ row.player_id }}"
+              {% if row.player_id in current_lineup %}checked{% endif %}>
+          </td>
+          <td>{{ row.players.name }}</td>
+          <td>{{ row.players.world_rank or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit">Save Lineup</button>
+  </form>
+{% else %}
+  <p>No active tournament right now. Check back before the next event.</p>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Season Standings</h1>
+
+{% if teams %}
+<table class="standings">
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Team</th>
+      <th>Manager</th>
+      <th>Wins</th>
+      <th>Points</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for team in teams %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td><a href="/roster/{{ team.id }}">{{ team.name }}</a></td>
+      <td>{{ team.manager }}</td>
+      <td>{{ team.wins or 0 }}</td>
+      <td>{{ team.points or 0 }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No teams yet. Time to draft!</p>
+{% endif %}
+
+<h2>Recent Tournaments</h2>
+{% if tournaments %}
+<ul class="tournament-list">
+  {% for t in tournaments %}
+  <li>{{ t.name }} — {{ t.start_date }}</li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No tournaments recorded yet.</p>
+{% endif %}
+
+{% endblock %}

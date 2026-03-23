@@ -1,0 +1,5 @@
+flask==3.0.3
+supabase==2.4.6
+requests==2.31.0
+python-dotenv==1.0.1
+apscheduler==3.10.4

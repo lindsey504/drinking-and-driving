@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if not tournament %}
+  <h1>No Active Tournament</h1>
+  <p>Check back when the next event starts.</p>
+{% else %}
+  <h1>{{ tournament.name }}</h1>
+  {% if is_major %}
+    <span class="major-badge">⭐ MAJOR — {{ multiplier }}x scoring</span>
+  {% endif %}
+
+  <h2>Team Scores</h2>
+  {% if team_totals %}
+  <table class="standings">
+    <thead>
+      <tr>
+        <th>Rank</th>
+        <th>Team</th>
+        <th>Score (to par)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in team_totals %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ row.team.name }} <small>({{ row.team.manager }})</small></td>
+        <td>{{ row.total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Scores not yet available.</p>
+  {% endif %}
+
+  <h2>Player Scores</h2>
+  {% if scores %}
+  <table class="scores">
+    <thead>
+      <tr>
+        <th>Player</th>
+        <th>Score</th>
+        <th>Round</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in scores %}
+      <tr class="{{ 'cut' if s.cut else '' }}">
+        <td>{{ s.players.name }}</td>
+        <td>{{ s.score_to_par }}</td>
+        <td>R{{ s.round }}</td>
+        <td>{{ 'CUT' if s.cut else 'Active' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No scores yet.</p>
+  {% endif %}
+
+  <p class="refresh-note" hx-get="/scoreboard" hx-trigger="every 15m" hx-target="body">
+    Auto-refreshes every 15 minutes during play.
+  </p>
+{% endif %}
+
+{% endblock %}

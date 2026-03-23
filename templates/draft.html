@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Draft Board</h1>
+<p>Each team picks {{ roster_size }} players. Snake order.</p>
+
+<div class="draft-layout">
+  <div class="teams">
+    <h2>Teams</h2>
+    {% for team in teams %}
+    <div class="team-card">
+      <strong>{{ team.name }}</strong> ({{ team.manager }})<br>
+      <a href="/roster/{{ team.id }}">View roster</a>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="available">
+    <h2>Available Players</h2>
+    <input type="text" id="search" placeholder="Search players..." oninput="filterPlayers(this.value)">
+    <table class="players" id="player-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Player</th>
+          <th>Country</th>
+          <th>Pick</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for player in available %}
+        <tr class="player-row" data-name="{{ player.name|lower }}">
+          <td>{{ player.world_rank or '—' }}</td>
+          <td>{{ player.name }}</td>
+          <td>{{ player.country or '—' }}</td>
+          <td>
+            <form method="POST" action="/draft/pick">
+              <input type="hidden" name="player_id" value="{{ player.id }}">
+              <select name="team_id">
+                {% for team in teams %}
+                <option value="{{ team.id }}">{{ team.manager }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit">Pick</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function filterPlayers(query) {
+  document.querySelectorAll('.player-row').forEach(row => {
+    row.style.display = row.dataset.name.includes(query.toLowerCase()) ? '' : 'none';
+  });
+}
+</script>
+
+{% endblock %}
