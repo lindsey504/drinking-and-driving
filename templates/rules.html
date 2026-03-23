@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>How It Works</h1>
+
+<section class="rules">
+  <h2>🏌️ The Draft</h2>
+  <ul>
+    <li>Each team drafts <strong>15 players</strong> from the player pool.</li>
+    <li>Snake draft order — take turns picking until all rosters are full.</li>
+    <li>Once a player is drafted, no one else can pick them.</li>
+  </ul>
+
+  <h2>📅 Weekly Lineups</h2>
+  <ul>
+    <li>Before each tournament, set your <strong>5 starters</strong> from your 15-player roster.</li>
+    <li>Lineups lock when the tournament starts — no swapping mid-round.</li>
+    <li>If you forget to set a lineup, your previous week's starters carry over.</li>
+  </ul>
+
+  <h2>🏆 Scoring</h2>
+  <ul>
+    <li>Your team score = combined <strong>score-to-par</strong> of your 5 starters.</li>
+    <li>Lower is better — this is stroke play.</li>
+    <li>Players who miss the cut count as <strong>+10</strong> for that tournament.</li>
+    <li><strong>Majors</strong> (Masters, US Open, The Open, PGA Championship) count <strong>1.5×</strong>.</li>
+  </ul>
+
+  <h2>📊 Season Standings</h2>
+  <ul>
+    <li>The team with the best score each tournament wins that week.</li>
+    <li>Season winner = most <strong>wins</strong>. Points are the tiebreaker.</li>
+  </ul>
+
+  <h2>⛳ Majors (1.5× multiplier)</h2>
+  <ul>
+    <li>The Masters</li>
+    <li>US Open</li>
+    <li>The Open Championship</li>
+    <li>PGA Championship</li>
+  </ul>
+</section>
+{% endblock %}

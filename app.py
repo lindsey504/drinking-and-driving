@@ -17,6 +17,11 @@ supabase = create_client(
 
 # ── Routes ──────────────────────────────────────────────────────────────────
 
+@app.route("/rules")
+def rules():
+    return render_template("rules.html", league=LEAGUE_NAME)
+
+
 @app.route("/")
 def index():
     """Homepage — season standings."""
