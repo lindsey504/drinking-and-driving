@@ -3,5 +3,9 @@ run = "python app.py"
 [deployment]
 run = ["gunicorn", "app:app", "--bind", "0.0.0.0:8080"]
 
+[[ports]]
+localPort = 8080
+externalPort = 80
+
 [env]
 FLASK_APP = "app.py"
