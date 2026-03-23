@@ -243,7 +243,7 @@ def fetch_live_scores(espn_event_id):
         status = comp.get("status", {}).get("type", {}).get("name", "")
         did_cut = "CUT" in status.upper()
         if did_cut:
-            score_to_par = 10  # missed cut penalty
+            score_to_par = 0  # missed cut = no score, no penalty
 
         results.append({
             "player_id": player_id,
