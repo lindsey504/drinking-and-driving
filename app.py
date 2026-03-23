@@ -107,7 +107,7 @@ def scoreboard():
     if not tournament:
         return render_template("scoreboard.html", tournament=None, scores=[])
 
-    scores = supabase.table("scores").select("*, players(*), teams(*)").eq("tournament_id", tournament["id"]).execute().data
+    scores = supabase.table("scores").select("*, players(*)").eq("tournament_id", tournament["id"]).execute().data
     team_totals = compute_team_totals(tournament["id"])
     is_major = tournament["name"] in MAJORS
 
