@@ -31,7 +31,7 @@
         {% for player in available %}
         <tr class="player-row" data-name="{{ player.name|lower }}">
           <td>{{ player.world_rank or '—' }}</td>
-          <td>{{ player.name }}</td>
+          <td><a href="/player/{{ player.id }}" target="_blank">{{ player.name }}</a></td>
           <td>{{ player.country or '—' }}</td>
           <td>
             <form method="POST" action="/draft/pick">

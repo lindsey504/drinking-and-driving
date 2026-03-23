@@ -133,6 +133,44 @@ def scoreboard():
                            team_totals=team_totals, is_major=is_major, multiplier=MAJORS_MULTIPLIER)
 
 
+@app.route("/player/<player_id>")
+def player_stats(player_id):
+    """Player profile — scoring history and stats."""
+    player = supabase.table("players").select("*").eq("id", player_id).single().execute().data
+
+    # Find which team drafted this player (if any)
+    roster_row = supabase.table("roster").select("team_id").eq("player_id", player_id).limit(1).execute().data
+    team = None
+    if roster_row:
+        team = supabase.table("teams").select("*").eq("id", roster_row[0]["team_id"]).single().execute().data
+
+    # Get score history across all tournaments
+    scores_raw = supabase.table("scores").select("*, tournaments(name, start_date)").eq("player_id", player_id).order("tournaments(start_date)", desc=True).execute().data
+
+    history = []
+    for s in scores_raw:
+        score = s["score_to_par"] or 0
+        history.append({
+            "tournament": s["tournaments"]["name"] if s.get("tournaments") else "Unknown",
+            "score_to_par": score,
+            "score_str": f"+{score}" if score > 0 else str(score),
+            "round": s["round"],
+            "cut": s["cut"]
+        })
+
+    tournaments_played = len(history)
+    cuts_made = sum(1 for h in history if not h["cut"])
+    scores_only = [h["score_to_par"] for h in history if not h["cut"]]
+    avg_score = round(sum(scores_only) / len(scores_only), 1) if scores_only else "—"
+    best_score = min(scores_only) if scores_only else "—"
+    if isinstance(best_score, int):
+        best_score = f"+{best_score}" if best_score > 0 else str(best_score)
+
+    return render_template("player.html", player=player, team=team, history=history,
+                           tournaments_played=tournaments_played, cuts_made=cuts_made,
+                           avg_score=avg_score, best_score=best_score)
+
+
 @app.route("/roster/<team_id>/drop/<roster_id>", methods=["POST"])
 def drop_player(team_id, roster_id):
     """Drop a player from a team's roster."""

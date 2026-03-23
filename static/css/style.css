@@ -175,3 +175,13 @@ footer {
   background: var(--red);
   color: white;
 }
+
+/* Player stats */
+.player-header { margin-bottom: 1.5rem; }
+.player-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.badge { background: var(--light-green); color: var(--dark); padding: 3px 10px; border-radius: 20px; font-size: 0.85em; }
+.badge.muted { background: #ddd; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+.stat-card { background: var(--cream); border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; }
+.stat-value { font-size: 2rem; font-weight: bold; color: var(--green); }
+.stat-label { font-size: 0.8em; color: var(--muted); margin-top: 4px; }

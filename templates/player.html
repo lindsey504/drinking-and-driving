@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="player-header">
+  <h1>{{ player.name }}</h1>
+  <div class="player-meta">
+    <span class="badge">🌍 {{ player.country or '—' }}</span>
+    <span class="badge">Rank #{{ player.world_rank or '—' }}</span>
+    {% if team %}
+    <span class="badge">🏌️ {{ team.name }} ({{ team.manager }})</span>
+    {% else %}
+    <span class="badge muted">Undrafted</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ avg_score }}</div>
+    <div class="stat-label">Avg Score to Par</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ tournaments_played }}</div>
+    <div class="stat-label">Tournaments</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ cuts_made }}</div>
+    <div class="stat-label">Cuts Made</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ best_score }}</div>
+    <div class="stat-label">Best Finish</div>
+  </div>
+</div>
+
+{% if history %}
+<h2>Tournament History</h2>
+<table class="standings">
+  <thead>
+    <tr>
+      <th>Tournament</th>
+      <th>Score</th>
+      <th>Round</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for h in history %}
+    <tr class="{{ 'cut' if h.cut else '' }}">
+      <td>{{ h.tournament }}</td>
+      <td>{{ h.score_str }}</td>
+      <td>R{{ h.round }}</td>
+      <td>{{ 'CUT' if h.cut else '✅ Made cut' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No tournament history yet.</p>
+{% endif %}
+
+{% endblock %}

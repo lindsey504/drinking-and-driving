@@ -18,7 +18,7 @@
   <tbody>
     {% for row in players %}
     <tr>
-      <td>{{ row.players.name }}</td>
+      <td><a href="/player/{{ row.players.id }}">{{ row.players.name }}</a></td>
       <td>{{ row.players.world_rank or '—' }}</td>
       <td>{{ row.players.country or '—' }}</td>
       <td>
