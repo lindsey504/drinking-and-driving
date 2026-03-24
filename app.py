@@ -34,6 +34,7 @@ def scheduled_score_refresh():
                 "tournament_id": tournament["id"],
                 "player_id": entry["player_id"],
                 "score_to_par": entry["score_to_par"],
+                "total_strokes": entry.get("total_strokes", 0),
                 "round": entry["round"],
                 "cut": entry.get("cut", False)
             }, on_conflict="tournament_id,player_id").execute()
@@ -182,6 +183,18 @@ def scoreboard():
                            team_tee_times=team_tee_times, tee_times_available=bool(tee_times_raw))
 
 
+@app.route("/scoreboard/live")
+def scoreboard_live():
+    """HTMX partial — live team score widget, refreshes every 30s."""
+    tournament = get_current_tournament()
+    if not tournament:
+        return '<p class="muted">No active tournament.</p>'
+    team_totals = compute_team_totals(tournament["id"])
+    is_major = tournament["name"] in MAJORS
+    return render_template("_live_scores.html", team_totals=team_totals,
+                           is_major=is_major, multiplier=MAJORS_MULTIPLIER)
+
+
 @app.route("/player/<player_id>")
 def player_stats(player_id):
     """Player profile — scoring history and stats."""
@@ -269,6 +282,7 @@ def refresh_scores():
             "tournament_id": tournament["id"],
             "player_id": entry["player_id"],
             "score_to_par": entry["score_to_par"],
+            "total_strokes": entry.get("total_strokes", 0),
             "round": entry["round"],
             "cut": entry.get("cut", False)
         }, on_conflict="tournament_id,player_id").execute()
@@ -285,10 +299,10 @@ def get_current_tournament():
 
 
 def compute_team_totals(tournament_id):
-    """Sum each team's starters' scores."""
-    lineups = supabase.table("lineups").select("team_id, player_id").eq("tournament_id", tournament_id).execute().data
-    scores_raw = supabase.table("scores").select("player_id, score_to_par").eq("tournament_id", tournament_id).execute().data
-    score_map = {s["player_id"]: s["score_to_par"] for s in scores_raw}
+    """Sum each team's starters' scores. Returns score-to-par + total strokes + player breakdown."""
+    lineups = supabase.table("lineups").select("team_id, player_id, players(name)").eq("tournament_id", tournament_id).execute().data
+    scores_raw = supabase.table("scores").select("player_id, score_to_par, total_strokes, round, cut").eq("tournament_id", tournament_id).execute().data
+    score_map = {s["player_id"]: s for s in scores_raw}
     teams_raw = supabase.table("teams").select("*").execute().data
     team_map = {t["id"]: t for t in teams_raw}
 
@@ -296,12 +310,27 @@ def compute_team_totals(tournament_id):
     for pick in lineups:
         tid = pick["team_id"]
         pid = pick["player_id"]
-        score = score_map.get(pid, 0) or 0
-        totals[tid] = totals.get(tid, 0) + score
+        s = score_map.get(pid, {})
+        stp = s.get("score_to_par") or 0
+        strokes = s.get("total_strokes") or 0
+        pname = pick.get("players", {}).get("name", "Unknown") if pick.get("players") else "Unknown"
+        if tid not in totals:
+            totals[tid] = {"score_to_par": 0, "total_strokes": 0, "players": []}
+        totals[tid]["score_to_par"] += stp
+        totals[tid]["total_strokes"] += strokes
+        totals[tid]["players"].append({
+            "name": pname,
+            "score_to_par": stp,
+            "total_strokes": strokes,
+            "round": s.get("round", 0),
+            "cut": s.get("cut", False)
+        })
 
     return sorted([
-        {"team": team_map[tid], "total": total}
-        for tid, total in totals.items()
+        {"team": team_map[tid], "total": data["score_to_par"],
+         "total_strokes": data["total_strokes"], "players": data["players"]}
+        for tid, data in totals.items()
+        if tid in team_map
     ], key=lambda x: x["total"])
 
 
@@ -345,14 +374,24 @@ def fetch_live_scores(espn_event_id):
         except (ValueError, TypeError):
             score_to_par = 0
 
+        # Total strokes = sum of round scores from linescores
+        total_strokes = 0
+        for rnd in comp.get("linescores", []):
+            try:
+                total_strokes += int(rnd.get("value", 0))
+            except (ValueError, TypeError):
+                pass
+
         status = comp.get("status", {}).get("type", {}).get("name", "")
         did_cut = "CUT" in status.upper()
         if did_cut:
             score_to_par = 0  # missed cut = no score, no penalty
+            total_strokes = 0
 
         results.append({
             "player_id": player_id,
             "score_to_par": score_to_par,
+            "total_strokes": total_strokes,
             "round": current_round,
             "cut": did_cut
         })

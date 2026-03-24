@@ -1,0 +1,37 @@
+{% if team_totals %}
+<div class="live-grid">
+  {% for row in team_totals %}
+  {% set rank = loop.index %}
+  {% set stp = row.total %}
+  {% set stp_str = ("+%d" % stp) if stp > 0 else ("E" if stp == 0 else "%d" % stp) %}
+  <div class="live-card {% if rank == 1 %}leading{% endif %}">
+    <div class="live-rank">{{ ["🥇","🥈","🥉"][rank-1] if rank <= 3 else rank }}</div>
+    <div class="live-team">
+      <span class="live-name">{{ row.team.name }}</span>
+      <span class="live-manager">{{ row.team.manager }}</span>
+    </div>
+    <div class="live-score">
+      <span class="live-stp">{{ stp_str }}</span>
+      {% if row.total_strokes > 0 %}
+      <span class="live-strokes">{{ row.total_strokes }} strokes</span>
+      {% else %}
+      <span class="live-strokes muted">—</span>
+      {% endif %}
+    </div>
+    <div class="live-players">
+      {% for p in row.players %}
+      <span class="live-player-chip {% if p.cut %}cut{% endif %}">
+        {{ p.name.split()[-1] }}
+        {% if p.score_to_par != 0 %}
+          {{ ("+%d" % p.score_to_par) if p.score_to_par > 0 else p.score_to_par }}
+        {% else %}E{% endif %}
+        {% if p.cut %}<em>CUT</em>{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">Set your lineups to see live scores here.</p>
+{% endif %}
