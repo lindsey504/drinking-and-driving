@@ -1,7 +1,7 @@
 run = "python app.py"
 
 [deployment]
-run = ["bash", "start.sh"]
+run = ["python3", "-m", "gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "120"]
 
 [[ports]]
 localPort = 8080
