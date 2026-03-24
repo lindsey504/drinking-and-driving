@@ -118,6 +118,32 @@ def lineup(team_id):
                            starters_needed=STARTERS_PER_WEEK, tournament=current_tournament)
 
 
+def fetch_tee_times(event_id):
+    """Fetch tee times from ESPN core API. Returns dict of player_name -> {tee_time, hole, group}."""
+    try:
+        url = f"http://sports.core.api.espn.com/v2/sports/golf/leagues/pga/events/{event_id}/competitions/{event_id}/competitors?limit=200&lang=en&region=us"
+        r = requests.get(url, timeout=5)
+        data = r.json()
+        tee_times = {}
+        for item in data.get("items", []):
+            # Each item is a $ref — fetch the competitor detail
+            ref = item.get("$ref", "")
+            if not ref:
+                continue
+            cr = requests.get(ref, timeout=3).json()
+            athlete = cr.get("athlete", {})
+            name = athlete.get("fullName") or athlete.get("displayName")
+            tee_time = cr.get("teeTime")
+            hole = cr.get("startHole")
+            group = cr.get("groupId")
+            if name and tee_time:
+                tee_times[name] = {"tee_time": tee_time, "hole": hole, "group": group}
+        return tee_times
+    except Exception as e:
+        print(f"[tee times] error: {e}")
+        return {}
+
+
 @app.route("/scoreboard")
 def scoreboard():
     """Live scores for the current tournament."""
@@ -129,8 +155,31 @@ def scoreboard():
     team_totals = compute_team_totals(tournament["id"])
     is_major = tournament["name"] in MAJORS
 
+    # Tee times — fetch from ESPN, match against each team's lineup
+    tee_times_raw = {}
+    if tournament.get("external_id"):
+        tee_times_raw = fetch_tee_times(tournament["external_id"])
+
+    # Build per-team tee time data
+    teams = supabase.table("teams").select("*").execute().data
+    team_tee_times = []
+    for team in teams:
+        lineup_rows = supabase.table("lineups").select("player_id, players(name)").eq("team_id", team["id"]).eq("tournament_id", tournament["id"]).execute().data
+        starters = []
+        for row in lineup_rows:
+            pname = row["players"]["name"] if row.get("players") else None
+            tt = tee_times_raw.get(pname, {})
+            starters.append({
+                "name": pname,
+                "tee_time": tt.get("tee_time"),
+                "hole": tt.get("hole"),
+            })
+        if starters:
+            team_tee_times.append({"team": team, "starters": starters})
+
     return render_template("scoreboard.html", tournament=tournament, scores=scores,
-                           team_totals=team_totals, is_major=is_major, multiplier=MAJORS_MULTIPLIER)
+                           team_totals=team_totals, is_major=is_major, multiplier=MAJORS_MULTIPLIER,
+                           team_tee_times=team_tee_times, tee_times_available=bool(tee_times_raw))
 
 
 @app.route("/player/<player_id>")

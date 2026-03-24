@@ -23,6 +23,32 @@
   </div>
   {% endif %}
 
+  <h2>⏰ Tee Times</h2>
+  {% if tee_times_available and team_tee_times %}
+    {% for tt in team_tee_times %}
+    <div class="tee-card">
+      <strong>{{ tt.team.name }}</strong> <span class="muted">({{ tt.team.manager }})</span>
+      <ul class="tee-list">
+        {% for s in tt.starters %}
+        <li>
+          <span class="tee-player">{{ s.name }}</span>
+          {% if s.tee_time %}
+            <span class="tee-time">{{ s.tee_time }}</span>
+            {% if s.hole %}<span class="tee-hole">Hole {{ s.hole }}</span>{% endif %}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  {% elif team_tee_times %}
+    <p class="muted">📅 Tee times drop Tuesday — check back soon.</p>
+  {% else %}
+    <p class="muted">Set your lineup to see tee times.</p>
+  {% endif %}
+
   <h2>Team Scores</h2>
   {% if team_totals %}
   <table class="standings">
