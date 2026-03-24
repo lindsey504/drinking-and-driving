@@ -1,22 +1,15 @@
-run = "python app.py"
+run = "PYTHONPATH=/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages python app.py"
 
 [nix]
 channel = "stable-24_05"
 
 [deployment]
-build = ["pip", "install", "-r", "requirements.txt", "-q"]
-run = ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "120"]
+run = ["bash", "-c", "PYTHONPATH=/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages gunicorn app:app --bind 0.0.0.0:8080 --workers 1 --timeout 120"]
 
 [[ports]]
 localPort = 8080
 externalPort = 80
 
-[packager]
-language = "python3"
-
-[packager.features]
-packageSearch = true
-guessImports = true
-
 [env]
 FLASK_APP = "app.py"
+PYTHONPATH = "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages"
