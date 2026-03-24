@@ -185,3 +185,8 @@ footer {
 .stat-card { background: var(--cream); border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; }
 .stat-value { font-size: 2rem; font-weight: bold; color: var(--green); }
 .stat-label { font-size: 0.8em; color: var(--muted); margin-top: 4px; }
+
+/* Course card */
+.course-card { background: var(--green); color: white; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0 1.5rem; }
+.course-info { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; }
+.course-stat { font-size: 0.9em; opacity: 0.95; }

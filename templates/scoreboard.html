@@ -10,6 +10,19 @@
     <span class="major-badge">⭐ MAJOR — {{ multiplier }}x scoring</span>
   {% endif %}
 
+  {% if tournament.name == "Texas Childrens Houston Open" %}
+  <div class="course-card">
+    <div class="course-info">
+      <span class="course-stat">📍 Memorial Park Golf Course — Houston, TX</span>
+      <span class="course-stat">⛳ Par 70</span>
+      <span class="course-stat">📏 7,475 yards</span>
+      <span class="course-stat">🏗️ Renovated 2019 (Tom Doak)</span>
+      <span class="course-stat">📅 Est. 1912 — Municipal course</span>
+      <span class="course-stat">💰 $9,900,000 purse</span>
+    </div>
+  </div>
+  {% endif %}
+
   <h2>Team Scores</h2>
   {% if team_totals %}
   <table class="standings">
