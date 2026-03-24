@@ -1,7 +1,10 @@
 run = "python app.py"
 
+[nix]
+channel = "stable-24_05"
+
 [deployment]
-run = ["python3", "-m", "gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "120"]
+run = ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "120"]
 
 [[ports]]
 localPort = 8080
