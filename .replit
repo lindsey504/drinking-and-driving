@@ -13,3 +13,6 @@ externalPort = 80
 [env]
 FLASK_APP = "app.py"
 PYTHONPATH = "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages"
+
+[agent]
+expertMode = true
