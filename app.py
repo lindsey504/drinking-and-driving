@@ -30,14 +30,16 @@ def scheduled_score_refresh():
             return
         scores = fetch_live_scores(tournament["external_id"])
         for entry in scores:
-            supabase.table("scores").upsert({
+            row = {
                 "tournament_id": tournament["id"],
                 "player_id": entry["player_id"],
                 "score_to_par": entry["score_to_par"],
-                "total_strokes": entry.get("total_strokes", 0),
                 "round": entry["round"],
                 "cut": entry.get("cut", False)
-            }, on_conflict="tournament_id,player_id").execute()
+            }
+            if entry.get("total_strokes") is not None:
+                row["total_strokes"] = entry["total_strokes"]
+            supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
         print(f"[scheduler] refreshed {len(scores)} scores for {tournament['name']}")
 
 scheduler = BackgroundScheduler()
@@ -278,14 +280,16 @@ def refresh_scores():
         return jsonify({"status": "no scores returned (tournament may not have started)"})
 
     for entry in scores:
-        supabase.table("scores").upsert({
+        row = {
             "tournament_id": tournament["id"],
             "player_id": entry["player_id"],
             "score_to_par": entry["score_to_par"],
-            "total_strokes": entry.get("total_strokes", 0),
             "round": entry["round"],
             "cut": entry.get("cut", False)
-        }, on_conflict="tournament_id,player_id").execute()
+        }
+        if entry.get("total_strokes") is not None:
+            row["total_strokes"] = entry["total_strokes"]
+        supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
 
     return jsonify({"status": "ok", "updated": len(scores)})
 
