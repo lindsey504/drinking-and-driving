@@ -7,6 +7,10 @@ channel = "stable-24_05"
 run = ["bash", "-c", "PYTHONPATH=/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages gunicorn app:app --bind 0.0.0.0:8080 --workers 1 --timeout 120"]
 
 [[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
 localPort = 8080
 externalPort = 80
 
