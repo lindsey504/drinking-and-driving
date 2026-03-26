@@ -18,7 +18,7 @@ supabase = create_client(
 )
 
 # ESPN event ID stored on the tournament row as external_id
-ESPN_LEADERBOARD_URL = "https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event={event_id}"
+ESPN_LEADERBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?event={event_id}"
 
 # ── Scheduler — auto-refresh scores every 15 min ─────────────────────────────
 
@@ -368,9 +368,13 @@ def fetch_live_scores(espn_event_id):
         if not player_id:
             continue  # player not in our pool, skip
 
-        score_val = comp.get("score", {}).get("value", 0)
+        score_str = comp.get("score", "0")
         try:
-            score_to_par = int(score_val) if score_val is not None else 0
+            # ESPN returns score as a string like "-3", "+2", "E", or "0"
+            if score_str in (None, "E", ""):
+                score_to_par = 0
+            else:
+                score_to_par = int(score_str)
         except (ValueError, TypeError):
             score_to_par = 0
 
