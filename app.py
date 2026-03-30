@@ -190,8 +190,19 @@ def scoreboard(tournament_id=None):
     else:
         tournament = get_current_tournament()
         if not tournament:
-            # Fall back to most recently completed tournament
-            past = supabase.table("tournaments").select("*").eq("active", False).order("end_date", desc=True).limit(1).execute().data
+            # Fall back to most recently completed tournament (not upcoming)
+            from datetime import date
+            today = date.today().isoformat()
+            past = (
+                supabase.table("tournaments")
+                .select("*")
+                .eq("active", False)
+                .lt("end_date", today)
+                .order("end_date", desc=True)
+                .limit(1)
+                .execute()
+                .data
+            )
             tournament = past[0] if past else None
 
     if not tournament:
@@ -202,8 +213,18 @@ def scoreboard(tournament_id=None):
     team_totals = compute_team_totals(tournament["id"])
     is_major = tournament["name"] in MAJORS
 
-    # Past results nav — all completed tournaments for the dropdown
-    past_tournaments = supabase.table("tournaments").select("id, name, end_date").eq("active", False).order("end_date", desc=True).execute().data
+    # Past results nav — only truly completed tournaments (end_date in the past)
+    from datetime import date
+    today = date.today().isoformat()
+    past_tournaments = (
+        supabase.table("tournaments")
+        .select("id, name, end_date")
+        .eq("active", False)
+        .lt("end_date", today)
+        .order("end_date", desc=True)
+        .execute()
+        .data
+    )
 
     # Tee times — only relevant for live tournaments
     tee_times_raw = {}
