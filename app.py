@@ -258,25 +258,41 @@ def scoreboard(tournament_id=None):
     else:
         tournament = get_current_tournament()
         if not tournament:
-            # Fall back to most recently completed tournament (not upcoming)
             from datetime import date
             today = date.today().isoformat()
-            past = (
+            # Show next upcoming tournament as a preview
+            upcoming_next = (
                 supabase.table("tournaments")
                 .select("*")
                 .eq("active", False)
-                .lt("end_date", today)
-                .order("end_date", desc=True)
+                .gt("start_date", today)
+                .order("start_date", desc=False)
                 .limit(1)
                 .execute()
                 .data
             )
-            tournament = past[0] if past else None
+            if upcoming_next:
+                tournament = upcoming_next[0]
+                tournament["_preview"] = True
+            else:
+                # Nothing upcoming — fall back to most recently completed
+                past = (
+                    supabase.table("tournaments")
+                    .select("*")
+                    .eq("active", False)
+                    .lt("end_date", today)
+                    .order("end_date", desc=True)
+                    .limit(1)
+                    .execute()
+                    .data
+                )
+                tournament = past[0] if past else None
 
     if not tournament:
         return render_template("scoreboard.html", tournament=None, scores=[], is_final=False)
 
-    is_final = not tournament.get("active", False)
+    is_preview = tournament.get("_preview", False)
+    is_final = not tournament.get("active", False) and not is_preview
     scores = supabase.table("scores").select("*, players(*)").eq("tournament_id", tournament["id"]).execute().data
     team_totals = compute_team_totals(tournament["id"])
     is_major = tournament["name"] in MAJORS
@@ -319,7 +335,8 @@ def scoreboard(tournament_id=None):
     return render_template("scoreboard.html", tournament=tournament, scores=scores,
                            team_totals=team_totals, is_major=is_major, multiplier=MAJORS_MULTIPLIER,
                            team_tee_times=team_tee_times, tee_times_available=bool(tee_times_raw),
-                           is_final=is_final, past_tournaments=past_tournaments, course=course)
+                           is_final=is_final, is_preview=is_preview,
+                           past_tournaments=past_tournaments, course=course)
 
 
 @app.route("/scoreboard/live")
