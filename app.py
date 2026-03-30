@@ -180,48 +180,62 @@ def fetch_tee_times(event_id):
 
 
 @app.route("/scoreboard")
-def scoreboard():
-    """Live scores for the current tournament."""
-    tournament = get_current_tournament()
-    if not tournament:
-        return render_template("scoreboard.html", tournament=None, scores=[])
+@app.route("/scoreboard/<tournament_id>")
+def scoreboard(tournament_id=None):
+    """Live scores for the current tournament, or final scores for a past one."""
+    # Determine which tournament to show
+    if tournament_id:
+        result = supabase.table("tournaments").select("*").eq("id", tournament_id).limit(1).execute().data
+        tournament = result[0] if result else None
+    else:
+        tournament = get_current_tournament()
+        if not tournament:
+            # Fall back to most recently completed tournament
+            past = supabase.table("tournaments").select("*").eq("active", False).order("end_date", desc=True).limit(1).execute().data
+            tournament = past[0] if past else None
 
+    if not tournament:
+        return render_template("scoreboard.html", tournament=None, scores=[], is_final=False)
+
+    is_final = not tournament.get("active", False)
     scores = supabase.table("scores").select("*, players(*)").eq("tournament_id", tournament["id"]).execute().data
     team_totals = compute_team_totals(tournament["id"])
     is_major = tournament["name"] in MAJORS
 
-    # Tee times — fetch from ESPN, match against each team's lineup
-    tee_times_raw = {}
-    if tournament.get("external_id"):
-        tee_times_raw = fetch_tee_times(tournament["external_id"])
+    # Past results nav — all completed tournaments for the dropdown
+    past_tournaments = supabase.table("tournaments").select("id, name, end_date").eq("active", False).order("end_date", desc=True).execute().data
 
-    # Build per-team tee time data
-    teams = supabase.table("teams").select("*").execute().data
+    # Tee times — only relevant for live tournaments
+    tee_times_raw = {}
     team_tee_times = []
-    for team in teams:
-        lineup_rows = supabase.table("lineups").select("player_id, players(name)").eq("team_id", team["id"]).eq("tournament_id", tournament["id"]).execute().data
-        starters = []
-        for row in lineup_rows:
-            pname = row["players"]["name"] if row.get("players") else None
-            tt = tee_times_raw.get(pname, {})
-            starters.append({
-                "name": pname,
-                "tee_time": tt.get("tee_time"),
-                "hole": tt.get("hole"),
-            })
-        if starters:
-            team_tee_times.append({"team": team, "starters": starters})
+    if not is_final and tournament.get("external_id"):
+        tee_times_raw = fetch_tee_times(tournament["external_id"])
+        teams = supabase.table("teams").select("*").execute().data
+        for team in teams:
+            lineup_rows = supabase.table("lineups").select("player_id, players(name)").eq("team_id", team["id"]).eq("tournament_id", tournament["id"]).execute().data
+            starters = []
+            for row in lineup_rows:
+                pname = row["players"]["name"] if row.get("players") else None
+                tt = tee_times_raw.get(pname, {})
+                starters.append({
+                    "name": pname,
+                    "tee_time": tt.get("tee_time"),
+                    "hole": tt.get("hole"),
+                })
+            if starters:
+                team_tee_times.append({"team": team, "starters": starters})
 
     return render_template("scoreboard.html", tournament=tournament, scores=scores,
                            team_totals=team_totals, is_major=is_major, multiplier=MAJORS_MULTIPLIER,
-                           team_tee_times=team_tee_times, tee_times_available=bool(tee_times_raw))
+                           team_tee_times=team_tee_times, tee_times_available=bool(tee_times_raw),
+                           is_final=is_final, past_tournaments=past_tournaments)
 
 
 @app.route("/scoreboard/live")
 def scoreboard_live():
     """HTMX partial — live team score widget, refreshes every 30s."""
     tournament = get_current_tournament()
-    if not tournament:
+    if not tournament or not tournament.get("active"):
         return '<p class="muted">No active tournament.</p>'
     team_totals = compute_team_totals(tournament["id"])
     is_major = tournament["name"] in MAJORS
