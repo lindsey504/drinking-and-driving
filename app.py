@@ -20,6 +20,74 @@ supabase = create_client(
 # ESPN event ID stored on the tournament row as external_id
 ESPN_LEADERBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?event={event_id}"
 
+# ── Course info — keyed by tournament name ────────────────────────────────────
+COURSE_INFO = {
+    "Texas Children's Houston Open": {
+        "course": "Memorial Park Golf Course",
+        "location": "Houston, TX",
+        "par": 70,
+        "yards": "7,475",
+        "notes": "Renovated 2019 (Tom Doak) · Est. 1912 · Municipal course",
+        "purse": "$9,900,000",
+    },
+    "Valero Texas Open": {
+        "course": "TPC San Antonio (AT&T Oaks Course)",
+        "location": "San Antonio, TX",
+        "par": 72,
+        "yards": "7,494",
+        "notes": "Designed by Pete Dye & Greg Norman (2010)",
+        "purse": "$9,200,000",
+    },
+    "Masters Tournament": {
+        "course": "Augusta National Golf Club",
+        "location": "Augusta, GA",
+        "par": 72,
+        "yards": "7,510",
+        "notes": "Founded 1933 by Bobby Jones & Clifford Roberts · No cut line",
+        "purse": "$21,000,000",
+    },
+    "RBC Heritage": {
+        "course": "Harbour Town Golf Links",
+        "location": "Hilton Head Island, SC",
+        "par": 71,
+        "yards": "7,121",
+        "notes": "Designed by Pete Dye & Jack Nicklaus (1969) · Signature Event",
+        "purse": "$20,000,000",
+    },
+    "Zurich Classic of New Orleans": {
+        "course": "TPC Louisiana",
+        "location": "Avondale, LA",
+        "par": 72,
+        "yards": "7,425",
+        "notes": "2-man team event · Foursome (alternate shot) + Fourball format",
+        "purse": "$9,800,000",
+    },
+    "Cadillac Championship": {
+        "course": "Trump National Doral (Blue Monster)",
+        "location": "Doral, FL",
+        "par": 72,
+        "yards": "7,529",
+        "notes": "Redesigned by Gil Hanse (2024) · Signature Event",
+        "purse": "$25,000,000",
+    },
+    "PGA Championship": {
+        "course": "Quail Hollow Club",
+        "location": "Charlotte, NC",
+        "par": 71,
+        "yards": "7,521",
+        "notes": "Designed by George Cobb (1961) · Hosted 2017 PGA Championship",
+        "purse": "$18,500,000",
+    },
+    "U.S. Open": {
+        "course": "Oakmont Country Club",
+        "location": "Oakmont, PA",
+        "par": 70,
+        "yards": "7,255",
+        "notes": "Founded 1903 · One of the most difficult courses in the world",
+        "purse": "$21,500,000",
+    },
+}
+
 # ── Scheduler — auto-refresh scores every 15 min ─────────────────────────────
 
 def scheduled_score_refresh():
@@ -246,10 +314,12 @@ def scoreboard(tournament_id=None):
             if starters:
                 team_tee_times.append({"team": team, "starters": starters})
 
+    course = COURSE_INFO.get(tournament["name"]) if tournament else None
+
     return render_template("scoreboard.html", tournament=tournament, scores=scores,
                            team_totals=team_totals, is_major=is_major, multiplier=MAJORS_MULTIPLIER,
                            team_tee_times=team_tee_times, tee_times_available=bool(tee_times_raw),
-                           is_final=is_final, past_tournaments=past_tournaments)
+                           is_final=is_final, past_tournaments=past_tournaments, course=course)
 
 
 @app.route("/scoreboard/live")
