@@ -3,7 +3,7 @@
 
 <h1>Season Standings</h1>
 
-{% if teams %}
+{% if standings %}
 <table class="standings">
   <thead>
     <tr>
@@ -15,13 +15,13 @@
     </tr>
   </thead>
   <tbody>
-    {% for team in teams %}
+    {% for team in standings %}
     <tr>
       <td>{{ loop.index }}</td>
       <td><a href="/roster/{{ team.id }}">{{ team.name }}</a></td>
       <td>{{ team.manager }}</td>
-      <td>{{ team.wins or 0 }}</td>
-      <td>{{ team.points or 0 }}</td>
+      <td>{{ team.wins }}</td>
+      <td>{{ team.points }}</td>
     </tr>
     {% endfor %}
   </tbody>

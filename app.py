@@ -60,23 +60,50 @@ def index():
     teams = supabase.table("teams").select("*").execute().data
     tournaments = supabase.table("tournaments").select("*").order("start_date", desc=True).execute().data
 
-    # Build trophy case from completed tournaments (has scores, not active)
+    # Build trophy case and compute season standings from completed tournaments
     trophy_case = []
     completed = [t for t in tournaments if not t.get("active")]
+
+    team_wins = {t["id"]: 0 for t in teams}
+    team_points = {t["id"]: 0 for t in teams}
+
     for t in completed:
         totals = compute_team_totals(t["id"])
-        if totals:
-            winner = totals[0]  # lowest score wins
-            score = winner["total"]
-            score_str = f"+{score}" if score > 0 else str(score)
-            trophy_case.append({
-                "tournament": t["name"],
-                "team": winner["team"]["name"],
-                "manager": winner["team"]["manager"],
-                "score": score_str
-            })
+        if not totals:
+            continue
 
-    return render_template("index.html", teams=teams, tournaments=tournaments,
+        # Trophy case — record winner
+        winner = totals[0]
+        score = winner["total"]
+        score_str = f"+{score}" if score > 0 else str(score)
+        trophy_case.append({
+            "tournament": t["name"],
+            "team": winner["team"]["name"],
+            "manager": winner["team"]["manager"],
+            "score": score_str
+        })
+
+        # Season points — award based on finish position
+        for i, result in enumerate(totals):
+            tid = result["team"]["id"]
+            pts = FINISH_POINTS[i] if i < len(FINISH_POINTS) else 0
+            team_points[tid] = team_points.get(tid, 0) + pts
+            if i == 0:
+                team_wins[tid] = team_wins.get(tid, 0) + 1
+
+    # Build standings sorted by points desc, then wins desc
+    standings = sorted([
+        {
+            "id": t["id"],
+            "name": t["name"],
+            "manager": t["manager"],
+            "wins": team_wins.get(t["id"], 0),
+            "points": team_points.get(t["id"], 0),
+        }
+        for t in teams
+    ], key=lambda x: (-x["points"], -x["wins"]))
+
+    return render_template("index.html", standings=standings, tournaments=tournaments,
                            trophy_case=trophy_case, league=LEAGUE_NAME)
 
 
@@ -292,6 +319,30 @@ def refresh_scores():
         supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
 
     return jsonify({"status": "ok", "updated": len(scores)})
+
+
+@app.route("/api/finalize-tournament/<tournament_id>", methods=["POST"])
+def finalize_tournament(tournament_id):
+    """Mark a tournament complete (active=False) and return final standings."""
+    result = supabase.table("tournaments").select("*").eq("id", tournament_id).limit(1).execute().data
+    if not result:
+        return jsonify({"status": "tournament not found"}), 404
+    tournament = result[0]
+
+    supabase.table("tournaments").update({"active": False}).eq("id", tournament_id).execute()
+
+    totals = compute_team_totals(tournament_id)
+    results = [
+        {"rank": i + 1, "team": r["team"]["name"], "manager": r["team"]["manager"],
+         "score_to_par": r["total"], "total_strokes": r["total_strokes"]}
+        for i, r in enumerate(totals)
+    ]
+
+    return jsonify({
+        "status": "finalized",
+        "tournament": tournament["name"],
+        "results": results
+    })
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

@@ -12,6 +12,9 @@ LOWER_IS_BETTER = True    # stroke play — lower score wins
 # Data
 SCORE_REFRESH_MINUTES = 15  # how often to pull live scores during a tournament
 
+# Season standings points awarded per finish position (index 0 = 1st place)
+FINISH_POINTS = [3, 2, 1]
+
 # Majors list (used to apply multiplier)
 MAJORS = [
     "Masters Tournament",
