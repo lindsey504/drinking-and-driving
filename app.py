@@ -103,8 +103,13 @@ def index():
         for t in teams
     ], key=lambda x: (-x["points"], -x["wins"]))
 
+    from datetime import date
+    today = date.today().isoformat()
+    upcoming = [t for t in tournaments if t.get("start_date", "") > today and not t.get("active")]
+    upcoming = list(reversed(upcoming))  # chronological order
+
     return render_template("index.html", standings=standings, tournaments=tournaments,
-                           trophy_case=trophy_case, league=LEAGUE_NAME)
+                           trophy_case=trophy_case, upcoming=upcoming, league=LEAGUE_NAME)
 
 
 @app.route("/roster/<team_id>")
@@ -348,9 +353,31 @@ def finalize_tournament(tournament_id):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def get_current_tournament():
-    """Return the active tournament."""
+    """Return the active tournament. Auto-activates by date if none is manually set."""
     result = supabase.table("tournaments").select("*").eq("active", True).limit(1).execute().data
-    return result[0] if result else None
+    if result:
+        return result[0]
+
+    # Auto-activate: find a tournament whose date window contains today
+    from datetime import date
+    today = date.today().isoformat()
+    candidates = (
+        supabase.table("tournaments")
+        .select("*")
+        .lte("start_date", today)
+        .gte("end_date", today)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if candidates:
+        t = candidates[0]
+        supabase.table("tournaments").update({"active": True}).eq("id", t["id"]).execute()
+        t["active"] = True
+        print(f"[auto-activate] activated tournament: {t['name']}")
+        return t
+
+    return None
 
 
 def compute_team_totals(tournament_id):

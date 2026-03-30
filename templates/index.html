@@ -55,18 +55,33 @@
 {% endif %}
 
 <h2>Schedule</h2>
-{% if tournaments %}
-<ul class="tournament-list">
-  {% for t in tournaments %}
-  <li>
-    {% if t.active %}<strong>🟢 LIVE — {% endif %}
-    {{ t.name }}{% if t.active %}</strong>{% endif %}
-    — {{ t.start_date }} to {{ t.end_date }}
-  </li>
-  {% endfor %}
-</ul>
+
+{% set active_t = tournaments | selectattr("active") | list %}
+{% if active_t %}
+<p>🟢 <strong>LIVE NOW: {{ active_t[0].name }}</strong> — {{ active_t[0].start_date }} to {{ active_t[0].end_date }}</p>
+{% endif %}
+
+{% if upcoming %}
+<table class="standings">
+  <thead>
+    <tr>
+      <th>Tournament</th>
+      <th>Dates</th>
+      <th>Type</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in upcoming %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td>{{ t.start_date }} – {{ t.end_date }}</td>
+      <td>{% if t.name in ["Masters Tournament", "US Open", "PGA Championship", "The Open Championship"] %}🏆 Major{% else %}Regular{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% else %}
-<p>No tournaments recorded yet.</p>
+<p class="muted">No upcoming tournaments loaded.</p>
 {% endif %}
 
 {% endblock %}
