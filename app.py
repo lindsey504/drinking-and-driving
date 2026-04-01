@@ -190,9 +190,9 @@ def roster(team_id):
 
 @app.route("/lineup/<team_id>", methods=["GET", "POST"])
 def lineup(team_id):
-    """Set weekly starters. Locks when tournament starts."""
+    """Set weekly starters. Uses active tournament or falls back to the next upcoming one."""
     team = supabase.table("teams").select("*").eq("id", team_id).single().execute().data
-    current_tournament = get_current_tournament()
+    current_tournament = get_current_tournament() or get_next_tournament()
     roster = supabase.table("roster").select("*, players(*)").eq("team_id", team_id).execute().data
 
     if request.method == "POST":
@@ -500,6 +500,23 @@ def get_current_tournament():
         return t
 
     return None
+
+
+def get_next_tournament():
+    """Return the next upcoming tournament (soonest start_date in the future)."""
+    from datetime import date
+    today = date.today().isoformat()
+    result = (
+        supabase.table("tournaments")
+        .select("*")
+        .eq("active", False)
+        .gt("start_date", today)
+        .order("start_date", desc=False)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return result[0] if result else None
 
 
 def compute_team_totals(tournament_id):
