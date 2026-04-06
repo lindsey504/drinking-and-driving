@@ -517,7 +517,6 @@ def get_current_tournament():
 
     return None
 
-
 def get_next_tournament():
     """Return the next upcoming tournament (soonest start_date in the future)."""
     from datetime import date
