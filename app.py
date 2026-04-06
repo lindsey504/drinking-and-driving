@@ -476,13 +476,29 @@ def finalize_tournament(tournament_id):
 
 def get_current_tournament():
     """Return the active tournament. Auto-activates by date if none is manually set."""
+    from datetime import date
+    today = date.today().isoformat()
+    
+    # Auto-deactivate: mark any tournament with end_date < today as inactive
+    expired = (
+        supabase.table("tournaments")
+        .select("id, name, end_date")
+        .eq("active", True)
+        .lt("end_date", today)
+        .execute()
+        .data
+    )
+    
+    for t in expired:
+        supabase.table("tournaments").update({"active": False}).eq("id", t["id"]).execute()
+        print(f"[auto-deactivate] deactivated tournament: {t['name']}")
+    
+    # Check for active tournament (after deactivation)
     result = supabase.table("tournaments").select("*").eq("active", True).limit(1).execute().data
     if result:
         return result[0]
 
     # Auto-activate: find a tournament whose date window contains today
-    from datetime import date
-    today = date.today().isoformat()
     candidates = (
         supabase.table("tournaments")
         .select("*")
