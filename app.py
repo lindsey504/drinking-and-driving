@@ -535,7 +535,12 @@ def get_next_tournament():
 
 
 def compute_team_totals(tournament_id):
-    """Sum each team's starters' scores. Returns score-to-par + total strokes + player breakdown."""
+    """Sum each team's starters' scores. Applies majors multiplier if applicable. Returns score-to-par + total strokes + player breakdown."""
+    # Get tournament to check if it's a major
+    tournament = supabase.table("tournaments").select("name").eq("id", tournament_id).single().execute().data
+    is_major = tournament.get("name") in MAJORS
+    multiplier = MAJORS_MULTIPLIER if is_major else 1.0
+    
     lineups = supabase.table("lineups").select("team_id, player_id, players(name)").eq("tournament_id", tournament_id).execute().data
     scores_raw = supabase.table("scores").select("player_id, score_to_par, total_strokes, round, cut").eq("tournament_id", tournament_id).execute().data
     score_map = {s["player_id"]: s for s in scores_raw}
@@ -547,7 +552,7 @@ def compute_team_totals(tournament_id):
         tid = pick["team_id"]
         pid = pick["player_id"]
         s = score_map.get(pid, {})
-        stp = s.get("score_to_par") or 0
+        stp = (s.get("score_to_par") or 0) * multiplier  # Apply multiplier
         strokes = s.get("total_strokes") or 0
         pname = pick.get("players", {}).get("name", "Unknown") if pick.get("players") else "Unknown"
         if tid not in totals:
@@ -567,7 +572,7 @@ def compute_team_totals(tournament_id):
          "total_strokes": data["total_strokes"], "players": data["players"]}
         for tid, data in totals.items()
         if tid in team_map
-    ], key=lambda x: x["total"])
+    ], key=lambda x: (x["total"], x["total_strokes"]))
 
 
 def fetch_live_scores(espn_event_id):
