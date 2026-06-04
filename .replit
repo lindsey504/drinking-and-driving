@@ -1,4 +1,5 @@
 run = "PYTHONPATH=/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages python app.py"
+modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
