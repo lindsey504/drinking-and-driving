@@ -196,6 +196,11 @@ atexit.register(lambda: scheduler.shutdown(wait=False))
 
 # ── Routes ──────────────────────────────────────────────────────────────────
 
+@app.route("/health")
+def health():
+    return "ok", 200
+
+
 @app.route("/rules")
 def rules():
     return render_template("rules.html", league=LEAGUE_NAME)
