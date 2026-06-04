@@ -5,6 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import requests
 import atexit
+from datetime import date
 from config import *
 
 load_dotenv()
@@ -19,6 +20,7 @@ supabase = create_client(
 
 # ESPN event ID stored on the tournament row as external_id
 ESPN_LEADERBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?event={event_id}"
+ESPN_SCHEDULE_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard"
 
 # ── Course info — keyed by tournament name ────────────────────────────────────
 COURSE_INFO = {
@@ -88,7 +90,7 @@ COURSE_INFO = {
     },
 }
 
-# ── Scheduler — auto-refresh scores every 15 min ─────────────────────────────
+# ── Scheduler — auto-refresh scores + fetch tournaments ───────────────────────
 
 def scheduled_score_refresh():
     """Called by APScheduler every 15 minutes."""
@@ -110,10 +112,87 @@ def scheduled_score_refresh():
             supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
         print(f"[scheduler] refreshed {len(scores)} scores for {tournament['name']}")
 
-scheduler = BackgroundScheduler()
+
+def fetch_and_sync_tournaments():
+    """Fetch upcoming tournaments from ESPN and sync to database."""
+    with app.app_context():
+        try:
+            resp = requests.get(ESPN_SCHEDULE_URL, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            print(f"[fetch_tournaments] ESPN fetch error: {e}")
+            return
+
+        # Get upcoming events
+        events = data.get("events", [])
+        if not events:
+            print("[fetch_tournaments] no events found")
+            return
+
+        # Get current tournaments from DB to avoid dupes
+        existing = supabase.table("tournaments").select("external_id").execute().data
+        existing_ids = {t["external_id"] for t in existing}
+
+        added = 0
+        for event in events:
+            event_id = event.get("id")
+            if not event_id or event_id in existing_ids:
+                continue
+
+            name = event.get("name", "Unknown Tournament")
+            start_date = event.get("date", None)
+            # Events have dates like "2026-06-11T00:00Z" — extract just YYYY-MM-DD
+            if start_date:
+                start_date = start_date.split("T")[0]
+
+            # No built-in end_date in ESPN, so estimate as +3 days
+            if start_date:
+                from datetime import timedelta
+                sd = date.fromisoformat(start_date)
+                ed = sd + timedelta(days=3)
+                end_date = ed.isoformat()
+            else:
+                continue
+
+            try:
+                supabase.table("tournaments").insert({
+                    "name": name,
+                    "external_id": event_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "active": False
+                }).execute()
+                print(f"[fetch_tournaments] added: {name} ({start_date})")
+                added += 1
+            except Exception as e:
+                print(f"[fetch_tournaments] insert error for {name}: {e}")
+
+        if added > 0:
+            print(f"[fetch_tournaments] synced {added} new tournaments")
+        else:
+            print("[fetch_tournaments] no new tournaments to add")
+
+
+# Configure scheduler with Replit-safe settings
+scheduler = BackgroundScheduler(
+    daemon=True,  # Let the app shut down gracefully
+    timezone='UTC'
+)
+
+# Score refresh every 15 minutes (when tournament is active)
 scheduler.add_job(scheduled_score_refresh, "interval", minutes=SCORE_REFRESH_MINUTES)
-scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
+
+# Tournament fetch every Monday at 2 AM UTC (easier maintenance window)
+scheduler.add_job(fetch_and_sync_tournaments, "cron", day_of_week="mon", hour=2, minute=0)
+
+try:
+    scheduler.start()
+    print("[scheduler] started successfully")
+except Exception as e:
+    print(f"[scheduler] startup error: {e}")
+
+atexit.register(lambda: scheduler.shutdown(wait=False))
 
 # ── Routes ──────────────────────────────────────────────────────────────────
 
@@ -171,7 +250,6 @@ def index():
         for t in teams
     ], key=lambda x: (-x["points"], -x["wins"]))
 
-    from datetime import date
     today = date.today().isoformat()
     upcoming = [t for t in tournaments if t.get("start_date", "") > today and not t.get("active")]
     upcoming = list(reversed(upcoming))  # chronological order
@@ -258,7 +336,6 @@ def scoreboard(tournament_id=None):
     else:
         tournament = get_current_tournament()
         if not tournament:
-            from datetime import date
             today = date.today().isoformat()
             # Show next upcoming tournament as a preview
             upcoming_next = (
@@ -289,7 +366,7 @@ def scoreboard(tournament_id=None):
                 tournament = past[0] if past else None
 
     if not tournament:
-        return render_template("scoreboard.html", tournament=None, scores=[], is_final=False)
+        return render_template("scoreboard.html", tournament=None, scores=[], is_final=False, is_preview=False)
 
     is_preview = tournament.get("_preview", False)
     is_final = not tournament.get("active", False) and not is_preview
@@ -298,7 +375,6 @@ def scoreboard(tournament_id=None):
     is_major = tournament["name"] in MAJORS
 
     # Past results nav — only truly completed tournaments (end_date in the past)
-    from datetime import date
     today = date.today().isoformat()
     past_tournaments = (
         supabase.table("tournaments")
@@ -313,7 +389,7 @@ def scoreboard(tournament_id=None):
     # Tee times — only relevant for live tournaments
     tee_times_raw = {}
     team_tee_times = []
-    if not is_final and tournament.get("external_id"):
+    if not is_final and not is_preview and tournament.get("external_id"):
         tee_times_raw = fetch_tee_times(tournament["external_id"])
         teams = supabase.table("teams").select("*").execute().data
         for team in teams:
@@ -448,6 +524,13 @@ def refresh_scores():
     return jsonify({"status": "ok", "updated": len(scores)})
 
 
+@app.route("/api/sync-tournaments")
+def sync_tournaments():
+    """Manually trigger tournament sync."""
+    fetch_and_sync_tournaments()
+    return jsonify({"status": "tournament sync triggered"})
+
+
 @app.route("/api/finalize-tournament/<tournament_id>", methods=["POST"])
 def finalize_tournament(tournament_id):
     """Mark a tournament complete (active=False) and return final standings."""
@@ -476,7 +559,6 @@ def finalize_tournament(tournament_id):
 
 def get_current_tournament():
     """Return the active tournament. Auto-activates by date if none is manually set."""
-    from datetime import date
     today = date.today().isoformat()
     
     # Auto-deactivate: mark any tournament with end_date < today as inactive
@@ -517,9 +599,9 @@ def get_current_tournament():
 
     return None
 
+
 def get_next_tournament():
     """Return the next upcoming tournament (soonest start_date in the future)."""
-    from datetime import date
     today = date.today().isoformat()
     result = (
         supabase.table("tournaments")
