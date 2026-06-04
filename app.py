@@ -304,9 +304,13 @@ def fetch_tee_times(event_id):
     try:
         url = f"http://sports.core.api.espn.com/v2/sports/golf/leagues/pga/events/{event_id}/competitions/{event_id}/competitors?limit=200&lang=en&region=us"
         r = requests.get(url, timeout=5)
+        r.raise_for_status()
         data = r.json()
+        items = data.get("items", [])
+        print(f"[tee times] ESPN returned {len(items)} competitors for event {event_id}")
+        
         tee_times = {}
-        for item in data.get("items", []):
+        for item in items:
             # Each item is a $ref — fetch the competitor detail
             ref = item.get("$ref", "")
             if not ref:
@@ -319,9 +323,11 @@ def fetch_tee_times(event_id):
             group = cr.get("groupId")
             if name and tee_time:
                 tee_times[name] = {"tee_time": tee_time, "hole": hole, "group": group}
+        
+        print(f"[tee times] extracted {len(tee_times)} tee times from ESPN")
         return tee_times
     except Exception as e:
-        print(f"[tee times] error: {e}")
+        print(f"[tee times] error fetching from ESPN: {e}")
         return {}
 
 
@@ -386,10 +392,11 @@ def scoreboard(tournament_id=None):
         .data
     )
 
-    # Tee times — only relevant for live tournaments
+    # Tee times — fetch during preview (before tournament) and live (during tournament)
+    # Don't fetch after tournament is final
     tee_times_raw = {}
     team_tee_times = []
-    if not is_final and not is_preview and tournament.get("external_id"):
+    if not is_final and tournament.get("external_id"):
         tee_times_raw = fetch_tee_times(tournament["external_id"])
         teams = supabase.table("teams").select("*").execute().data
         for team in teams:
