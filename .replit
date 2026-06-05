@@ -5,7 +5,7 @@ modules = ["python-3.11"]
 channel = "stable-24_05"
 
 [deployment]
-run = ["bash", "-c", "python3 -m gunicorn app:app --bind 0.0.0.0:8080 --workers 1 --timeout 120"]
+run = ["bash", "-c", "python3 -m gunicorn app:app --bind 0.0.0.0:5000 --workers 1 --timeout 120"]
 deploymentTarget = "autoscale"
 
 [[ports]]
