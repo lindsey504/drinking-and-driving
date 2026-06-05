@@ -586,8 +586,24 @@ def get_current_tournament():
     for t in expired:
         supabase.table("tournaments").update({"active": False}).eq("id", t["id"]).execute()
         print(f"[auto-deactivate] deactivated tournament: {t['name']}")
+        
+        # Auto-activate the next upcoming tournament
+        next_tournament = (
+            supabase.table("tournaments")
+            .select("*")
+            .eq("active", False)
+            .gt("start_date", today)
+            .order("start_date", desc=False)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if next_tournament:
+            nt = next_tournament[0]
+            supabase.table("tournaments").update({"active": True}).eq("id", nt["id"]).execute()
+            print(f"[auto-advance] auto-activated next tournament: {nt['name']} ({nt['start_date']})")
     
-    # Check for active tournament (after deactivation)
+    # Check for active tournament (after deactivation + auto-advance)
     result = supabase.table("tournaments").select("*").eq("active", True).limit(1).execute().data
     if result:
         return result[0]
