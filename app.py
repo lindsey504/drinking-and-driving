@@ -567,6 +567,62 @@ def finalize_tournament(tournament_id):
     })
 
 
+@app.route("/admin/set-lineups/<tournament_id>/<team_id>", methods=["POST"])
+def admin_set_lineups(tournament_id, team_id):
+    """Admin endpoint: Set a team's lineup for a tournament. POST with player_ids in JSON body."""
+    data = request.get_json()
+    player_ids = data.get("player_ids", [])
+    
+    if len(player_ids) != STARTERS_PER_WEEK:
+        return jsonify({"status": f"Must provide exactly {STARTERS_PER_WEEK} player IDs"}), 400
+    
+    # Clear existing lineups for this team/tournament
+    supabase.table("lineups").delete().eq("team_id", team_id).eq("tournament_id", tournament_id).execute()
+    
+    # Insert new lineups
+    for player_id in player_ids:
+        supabase.table("lineups").insert({
+            "team_id": team_id,
+            "tournament_id": tournament_id,
+            "player_id": player_id
+        }).execute()
+    
+    return jsonify({"status": "lineups set", "team_id": team_id, "count": len(player_ids)})
+
+
+@app.route("/admin/finalize/<tournament_id>", methods=["POST"])
+def admin_finalize(tournament_id):
+    """Admin endpoint: Mark tournament complete and finalize standings."""
+    result = supabase.table("tournaments").select("*").eq("id", tournament_id).limit(1).execute().data
+    if not result:
+        return jsonify({"status": "tournament not found"}), 404
+    
+    tournament = result[0]
+    
+    # Mark as inactive (finalized)
+    supabase.table("tournaments").update({"active": False}).eq("id", tournament_id).execute()
+    
+    # Get final standings
+    team_totals = compute_team_totals(tournament_id)
+    
+    results = [
+        {
+            "rank": i + 1,
+            "team": t["team"]["name"],
+            "manager": t["team"]["manager"],
+            "score_to_par": t["total"],
+            "total_strokes": t["total_strokes"]
+        }
+        for i, t in enumerate(team_totals)
+    ]
+    
+    return jsonify({
+        "status": "tournament finalized",
+        "tournament": tournament["name"],
+        "results": results
+    })
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def get_current_tournament():
