@@ -778,18 +778,21 @@ def fetch_live_scores(espn_event_id):
         score_str = comp.get("score", "0")
         try:
             # ESPN returns score as a string like "-3", "+2", "E", or "0"
+            # Handle decimal values (e.g., "67.5") by rounding to nearest integer
             if score_str in (None, "E", ""):
                 score_to_par = 0
             else:
-                score_to_par = int(score_str)
+                score_to_par = int(round(float(score_str)))
         except (ValueError, TypeError):
             score_to_par = 0
 
         # Total strokes = sum of round scores from linescores
+        # Handle both int and float strings
         total_strokes = 0
         for rnd in comp.get("linescores", []):
             try:
-                total_strokes += int(rnd.get("value", 0))
+                val = rnd.get("value", 0)
+                total_strokes += int(round(float(val)))
             except (ValueError, TypeError):
                 pass
 
