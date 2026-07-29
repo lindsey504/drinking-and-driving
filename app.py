@@ -727,14 +727,14 @@ def compute_team_totals(tournament_id):
         totals[tid]["total_strokes"] += strokes
         totals[tid]["players"].append({
             "name": pname,
-            "score_to_par": stp,
+            "score_to_par": int(round(stp)),
             "total_strokes": strokes,
             "round": s.get("round", 0),
             "cut": s.get("cut", False)
         })
 
     return sorted([
-        {"team": team_map[tid], "total": data["score_to_par"],
+        {"team": team_map[tid], "total": int(round(data["score_to_par"])),
          "total_strokes": data["total_strokes"], "players": data["players"]}
         for tid, data in totals.items()
         if tid in team_map
