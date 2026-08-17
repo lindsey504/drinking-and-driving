@@ -5,8 +5,20 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import requests
 import atexit
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from config import *
+import logging
+
+# Set up proper logging so we can actually see what the scheduler is doing
+# instead of silent failures disappearing into the void
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("drinking-and-driving")
+
+# Track when we last refreshed scores so we can refresh on page load
+# if the data is stale (critical for Replit autoscale, which kills the
+# background scheduler when the app sleeps)
+_last_score_refresh = None
+STALE_THRESHOLD_MINUTES = 10  # if scores are older than this, refresh on page load
 
 load_dotenv()
 
@@ -92,67 +104,136 @@ COURSE_INFO = {
 
 # ── Scheduler — auto-refresh scores + fetch tournaments ───────────────────────
 
-def scheduled_score_refresh():
-    """Called by APScheduler every 15 minutes."""
-    with app.app_context():
+def do_score_refresh(source="scheduler"):
+    """
+    Core score refresh logic. Pulls live scores from ESPN and writes them
+    to Supabase. Called by both the background scheduler AND on page load
+    when data is stale (to survive Replit autoscale sleeping the app).
+
+    'source' is just a label for logging so we can tell what triggered it.
+    Returns (tournament, count) tuple or (None, 0) if nothing happened.
+    """
+    global _last_score_refresh
+
+    tournament = get_current_tournament()
+    if not tournament:
+        logger.info(f"[{source}] no active tournament found, skipping score refresh")
+        return None, 0
+
+    if not tournament.get("external_id"):
+        # Try to auto-match the tournament to an ESPN event before giving up.
+        # This handles the case where fetch_and_sync_tournaments created the
+        # row but a manually-added tournament doesn't have an ESPN ID.
+        logger.warning(f"[{source}] active tournament '{tournament['name']}' has no ESPN external_id, trying auto-sync first")
+        fetch_and_sync_tournaments()
+        # Re-fetch in case sync found a match
         tournament = get_current_tournament()
         if not tournament or not tournament.get("external_id"):
-            return
-        scores = fetch_live_scores(tournament["external_id"])
-        for entry in scores:
-            row = {
-                "tournament_id": tournament["id"],
-                "player_id": entry["player_id"],
-                "score_to_par": entry["score_to_par"],
-                "round": entry["round"],
-                "cut": entry.get("cut", False)
-            }
-            if entry.get("total_strokes") is not None:
-                row["total_strokes"] = entry["total_strokes"]
-            supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
-        print(f"[scheduler] refreshed {len(scores)} scores for {tournament['name']}")
+            logger.warning(f"[{source}] still no external_id after sync, cannot refresh scores")
+            return None, 0
+
+    scores = fetch_live_scores(tournament["external_id"])
+    if not scores:
+        logger.info(f"[{source}] ESPN returned 0 matched scores for '{tournament['name']}' (event {tournament['external_id']})")
+        return tournament, 0
+
+    for entry in scores:
+        row = {
+            "tournament_id": tournament["id"],
+            "player_id": entry["player_id"],
+            "score_to_par": entry["score_to_par"],
+            "round": entry["round"],
+            "cut": entry.get("cut", False)
+        }
+        if entry.get("total_strokes") is not None:
+            row["total_strokes"] = entry["total_strokes"]
+        supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
+
+    _last_score_refresh = datetime.now(timezone.utc)
+    logger.info(f"[{source}] refreshed {len(scores)} scores for '{tournament['name']}'")
+    return tournament, len(scores)
+
+
+def refresh_if_stale():
+    """
+    Check if scores are stale and refresh them if needed.
+    This is the key fix for Replit autoscale: instead of relying solely on
+    APScheduler (which dies when the app sleeps), we also refresh on page
+    load whenever the data is older than STALE_THRESHOLD_MINUTES.
+    """
+    global _last_score_refresh
+    now = datetime.now(timezone.utc)
+
+    if _last_score_refresh is None or (now - _last_score_refresh) > timedelta(minutes=STALE_THRESHOLD_MINUTES):
+        logger.info("[on-demand] scores are stale, triggering refresh on page load")
+        do_score_refresh(source="on-demand")
+
+
+def scheduled_score_refresh():
+    """Called by APScheduler every 15 minutes (when the app is awake)."""
+    with app.app_context():
+        do_score_refresh(source="scheduler")
 
 
 def fetch_and_sync_tournaments():
-    """Fetch upcoming tournaments from ESPN and sync to database."""
+    """
+    Fetch upcoming tournaments from ESPN and sync to database.
+    Also backfills external_id on existing tournaments that are missing it
+    (handles the case where a tournament was manually added without an ESPN ID).
+    """
     with app.app_context():
         try:
             resp = requests.get(ESPN_SCHEDULE_URL, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
             resp.raise_for_status()
             data = resp.json()
         except Exception as e:
-            print(f"[fetch_tournaments] ESPN fetch error: {e}")
+            logger.error(f"[fetch_tournaments] ESPN fetch error: {e}")
             return
 
         # Get upcoming events
         events = data.get("events", [])
         if not events:
-            print("[fetch_tournaments] no events found")
+            logger.info("[fetch_tournaments] no events found on ESPN")
             return
 
         # Get current tournaments from DB to avoid dupes
-        existing = supabase.table("tournaments").select("external_id").execute().data
-        existing_ids = {t["external_id"] for t in existing}
+        existing = supabase.table("tournaments").select("id, name, external_id").execute().data
+        existing_ids = {t["external_id"] for t in existing if t.get("external_id")}
+        # Build a name lookup for tournaments missing external_id
+        missing_ext_id = {t["name"].lower(): t["id"] for t in existing if not t.get("external_id")}
 
         added = 0
+        backfilled = 0
         for event in events:
             event_id = event.get("id")
-            if not event_id or event_id in existing_ids:
+            if not event_id:
                 continue
 
             name = event.get("name", "Unknown Tournament")
             start_date = event.get("date", None)
-            # Events have dates like "2026-06-11T00:00Z" — extract just YYYY-MM-DD
+            # Events have dates like "2026-06-11T00:00Z" -- extract just YYYY-MM-DD
             if start_date:
                 start_date = start_date.split("T")[0]
 
             # No built-in end_date in ESPN, so estimate as +3 days
             if start_date:
-                from datetime import timedelta
                 sd = date.fromisoformat(start_date)
                 ed = sd + timedelta(days=3)
                 end_date = ed.isoformat()
             else:
+                continue
+
+            # If this ESPN event already exists in our DB, skip it
+            if event_id in existing_ids:
+                continue
+
+            # Check if we have a tournament with the same name but no external_id
+            # (manually added). If so, backfill the ESPN ID instead of creating a dupe.
+            if name.lower() in missing_ext_id:
+                db_id = missing_ext_id[name.lower()]
+                supabase.table("tournaments").update({"external_id": event_id}).eq("id", db_id).execute()
+                logger.info(f"[fetch_tournaments] backfilled external_id '{event_id}' on existing tournament '{name}'")
+                backfilled += 1
                 continue
 
             try:
@@ -163,15 +244,12 @@ def fetch_and_sync_tournaments():
                     "end_date": end_date,
                     "active": False
                 }).execute()
-                print(f"[fetch_tournaments] added: {name} ({start_date})")
+                logger.info(f"[fetch_tournaments] added: {name} ({start_date}, ESPN ID: {event_id})")
                 added += 1
             except Exception as e:
-                print(f"[fetch_tournaments] insert error for {name}: {e}")
+                logger.error(f"[fetch_tournaments] insert error for {name}: {e}")
 
-        if added > 0:
-            print(f"[fetch_tournaments] synced {added} new tournaments")
-        else:
-            print("[fetch_tournaments] no new tournaments to add")
+        logger.info(f"[fetch_tournaments] done: {added} added, {backfilled} backfilled")
 
 
 # Configure scheduler with Replit-safe settings
@@ -183,14 +261,15 @@ scheduler = BackgroundScheduler(
 # Score refresh every 15 minutes (when tournament is active)
 scheduler.add_job(scheduled_score_refresh, "interval", minutes=SCORE_REFRESH_MINUTES)
 
-# Tournament fetch every Monday at 2 AM UTC (easier maintenance window)
-scheduler.add_job(fetch_and_sync_tournaments, "cron", day_of_week="mon", hour=2, minute=0)
+# Tournament fetch daily at 6 AM UTC (was weekly, but that caused gaps
+# when a tournament appeared on ESPN after the Monday sync window)
+scheduler.add_job(fetch_and_sync_tournaments, "cron", hour=6, minute=0)
 
 try:
     scheduler.start()
-    print("[scheduler] started successfully")
+    logger.info("[scheduler] started successfully")
 except Exception as e:
-    print(f"[scheduler] startup error: {e}")
+    logger.info(f"[scheduler] startup error: {e}")
 
 atexit.register(lambda: scheduler.shutdown(wait=False))
 
@@ -208,7 +287,9 @@ def rules():
 
 @app.route("/")
 def index():
-    """Homepage — season standings + trophy case."""
+    """Homepage -- season standings + trophy case."""
+    # Refresh scores on homepage load too, so standings are never stale
+    refresh_if_stale()
     teams = supabase.table("teams").select("*").execute().data
     tournaments = supabase.table("tournaments").select("*").order("start_date", desc=True).execute().data
 
@@ -312,7 +393,7 @@ def fetch_tee_times(event_id):
         r.raise_for_status()
         data = r.json()
         items = data.get("items", [])
-        print(f"[tee times] ESPN returned {len(items)} competitors for event {event_id}")
+        logger.info(f"[tee times] ESPN returned {len(items)} competitors for event {event_id}")
         
         tee_times = {}
         for item in items:
@@ -329,10 +410,10 @@ def fetch_tee_times(event_id):
             if name and tee_time:
                 tee_times[name] = {"tee_time": tee_time, "hole": hole, "group": group}
         
-        print(f"[tee times] extracted {len(tee_times)} tee times from ESPN")
+        logger.info(f"[tee times] extracted {len(tee_times)} tee times from ESPN")
         return tee_times
     except Exception as e:
-        print(f"[tee times] error fetching from ESPN: {e}")
+        logger.info(f"[tee times] error fetching from ESPN: {e}")
         return {}
 
 
@@ -340,6 +421,12 @@ def fetch_tee_times(event_id):
 @app.route("/scoreboard/<tournament_id>")
 def scoreboard(tournament_id=None):
     """Live scores for the current tournament, or final scores for a past one."""
+    # If viewing the current/live scoreboard (not a specific past tournament),
+    # refresh scores on page load if they are stale. This is the main fix for
+    # Replit autoscale killing the background scheduler.
+    if not tournament_id:
+        refresh_if_stale()
+
     # Determine which tournament to show
     if tournament_id:
         result = supabase.table("tournaments").select("*").eq("id", tournament_id).limit(1).execute().data
@@ -510,30 +597,11 @@ def draft_pick():
 
 @app.route("/api/refresh-scores")
 def refresh_scores():
-    """Manually trigger a score refresh. Also called by scheduler."""
-    tournament = get_current_tournament()
+    """Manually trigger a score refresh. Uses the same core logic as the scheduler."""
+    tournament, count = do_score_refresh(source="manual-api")
     if not tournament:
-        return jsonify({"status": "no active tournament"})
-    if not tournament.get("external_id"):
-        return jsonify({"status": "no ESPN event ID set on tournament"})
-
-    scores = fetch_live_scores(tournament["external_id"])
-    if not scores:
-        return jsonify({"status": "no scores returned (tournament may not have started)"})
-
-    for entry in scores:
-        row = {
-            "tournament_id": tournament["id"],
-            "player_id": entry["player_id"],
-            "score_to_par": entry["score_to_par"],
-            "round": entry["round"],
-            "cut": entry.get("cut", False)
-        }
-        if entry.get("total_strokes") is not None:
-            row["total_strokes"] = entry["total_strokes"]
-        supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
-
-    return jsonify({"status": "ok", "updated": len(scores)})
+        return jsonify({"status": "no active tournament (or no ESPN ID)", "updated": 0})
+    return jsonify({"status": "ok", "tournament": tournament["name"], "updated": count})
 
 
 @app.route("/api/sync-tournaments")
@@ -541,6 +609,64 @@ def sync_tournaments():
     """Manually trigger tournament sync."""
     fetch_and_sync_tournaments()
     return jsonify({"status": "tournament sync triggered"})
+
+
+@app.route("/api/debug")
+def debug_status():
+    """
+    Debug endpoint: shows the current state of the score pipeline so you
+    can see exactly why scores might not be updating. Hit this URL in your
+    browser to diagnose issues without needing server logs.
+    """
+    today = date.today().isoformat()
+
+    # What tournament does the app think is active?
+    active_tournament = get_current_tournament()
+
+    # How many tournaments are in the DB total?
+    all_tournaments = supabase.table("tournaments").select("id, name, start_date, end_date, active, external_id").order("start_date", desc=True).limit(10).execute().data
+
+    # How many players in the pool?
+    player_count = supabase.table("players").select("id", count="exact").execute().count
+
+    # When did we last refresh?
+    last_refresh_str = _last_score_refresh.isoformat() if _last_score_refresh else "never (since last app restart)"
+
+    # Check ESPN API health
+    espn_ok = False
+    espn_events = []
+    try:
+        r = requests.get(ESPN_SCHEDULE_URL, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        espn_ok = r.status_code == 200
+        if espn_ok:
+            for e in r.json().get("events", []):
+                espn_events.append({
+                    "name": e.get("name"),
+                    "id": e.get("id"),
+                    "status": e.get("status", {}).get("type", {}).get("name"),
+                    "date": e.get("date")
+                })
+    except Exception:
+        pass
+
+    return jsonify({
+        "today": today,
+        "active_tournament": {
+            "name": active_tournament["name"],
+            "id": active_tournament["id"],
+            "external_id": active_tournament.get("external_id"),
+            "active": active_tournament.get("active"),
+            "start_date": active_tournament.get("start_date"),
+            "end_date": active_tournament.get("end_date"),
+        } if active_tournament else None,
+        "last_score_refresh": last_refresh_str,
+        "stale_threshold_minutes": STALE_THRESHOLD_MINUTES,
+        "player_count": player_count,
+        "recent_tournaments_in_db": all_tournaments,
+        "espn_api_ok": espn_ok,
+        "espn_current_events": espn_events,
+        "scheduler_running": scheduler.running,
+    })
 
 
 @app.route("/api/finalize-tournament/<tournament_id>", methods=["POST"])
@@ -641,7 +767,7 @@ def get_current_tournament():
     
     for t in expired:
         supabase.table("tournaments").update({"active": False}).eq("id", t["id"]).execute()
-        print(f"[auto-deactivate] deactivated tournament: {t['name']}")
+        logger.info(f"[auto-deactivate] deactivated tournament: {t['name']}")
         
         # Auto-activate the next upcoming tournament
         next_tournament = (
@@ -657,7 +783,7 @@ def get_current_tournament():
         if next_tournament:
             nt = next_tournament[0]
             supabase.table("tournaments").update({"active": True}).eq("id", nt["id"]).execute()
-            print(f"[auto-advance] auto-activated next tournament: {nt['name']} ({nt['start_date']})")
+            logger.info(f"[auto-advance] auto-activated next tournament: {nt['name']} ({nt['start_date']})")
     
     # Check for active tournament (after deactivation + auto-advance)
     result = supabase.table("tournaments").select("*").eq("active", True).limit(1).execute().data
@@ -678,7 +804,7 @@ def get_current_tournament():
         t = candidates[0]
         supabase.table("tournaments").update({"active": True}).eq("id", t["id"]).execute()
         t["active"] = True
-        print(f"[auto-activate] activated tournament: {t['name']}")
+        logger.info(f"[auto-activate] activated tournament: {t['name']}")
         return t
 
     return None
@@ -744,7 +870,7 @@ def compute_team_totals(tournament_id):
 def fetch_live_scores(espn_event_id):
     """
     Fetch live scores from ESPN API.
-    Returns list of dicts: {player_id, score_to_par, round, cut}
+    Returns list of dicts: {player_id, score_to_par, round, cut, total_strokes}
     Matches players by name against our players table.
     """
     url = ESPN_LEADERBOARD_URL.format(event_id=espn_event_id)
@@ -753,7 +879,7 @@ def fetch_live_scores(espn_event_id):
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        print(f"ESPN fetch error: {e}")
+        logger.error(f"ESPN fetch error for event {espn_event_id}: {e}")
         return []
 
     # Get our player list for name matching
@@ -763,21 +889,27 @@ def fetch_live_scores(espn_event_id):
     results = []
     events = data.get("events", [])
     if not events:
+        logger.warning(f"ESPN returned no events for event ID {espn_event_id}")
         return []
 
     competitors = events[0].get("competitions", [{}])[0].get("competitors", [])
     current_round = events[0].get("status", {}).get("period", 1)
+    logger.info(f"ESPN returned {len(competitors)} competitors, round {current_round}")
 
+    matched = 0
+    unmatched = 0
     for comp in competitors:
         athlete = comp.get("athlete", {})
         full_name = athlete.get("displayName", "").lower()
         player_id = name_map.get(full_name)
         if not player_id:
+            unmatched += 1
             continue  # player not in our pool, skip
+        matched += 1
 
         score_str = comp.get("score", "0")
         try:
-            # ESPN returns score as a string like "-3", "+2", "E", or "0"
+            # ESPN returns score-to-par as a string like "-3", "+2", "E", or "0"
             # Handle decimal values (e.g., "67.5") by rounding to nearest integer
             if score_str in (None, "E", ""):
                 score_to_par = 0
@@ -787,7 +919,7 @@ def fetch_live_scores(espn_event_id):
             score_to_par = 0
 
         # Total strokes = sum of round scores from linescores
-        # Handle both int and float strings
+        # Each linescore entry has a "value" that is the strokes for that round
         total_strokes = 0
         for rnd in comp.get("linescores", []):
             try:
@@ -796,8 +928,18 @@ def fetch_live_scores(espn_event_id):
             except (ValueError, TypeError):
                 pass
 
-        status = comp.get("status", {}).get("type", {}).get("name", "")
-        did_cut = "CUT" in status.upper()
+        # Cut detection: ESPN has moved this field around over time.
+        # Check multiple possible locations to be safe.
+        status_name = comp.get("status", {}).get("type", {}).get("name", "") or ""
+        # Also check the top-level "type" field (ESPN sometimes puts "CUT" here)
+        comp_type = comp.get("type", "") or ""
+        did_cut = "CUT" in status_name.upper() or "CUT" in str(comp_type).upper()
+
+        # If a player has 0 linescores but the tournament is past round 2,
+        # they likely missed the cut (ESPN sometimes just omits their data)
+        if not did_cut and current_round > 2 and len(comp.get("linescores", [])) <= 2:
+            did_cut = True
+
         if did_cut:
             score_to_par = 0  # missed cut = no score, no penalty
             total_strokes = 0
@@ -809,6 +951,13 @@ def fetch_live_scores(espn_event_id):
             "round": current_round,
             "cut": did_cut
         })
+
+    logger.info(f"Name matching: {matched} matched, {unmatched} unmatched out of {len(competitors)} ESPN competitors")
+    if matched == 0 and len(competitors) > 0:
+        # Log some ESPN names so we can debug name mismatches
+        sample_names = [c.get("athlete", {}).get("displayName", "?") for c in competitors[:5]]
+        sample_db_names = list(name_map.keys())[:5]
+        logger.warning(f"Zero name matches! ESPN sample: {sample_names}, DB sample: {sample_db_names}")
 
     return results
 
