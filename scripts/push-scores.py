@@ -30,6 +30,17 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
+
+# Load .env file from the project root so cron jobs pick up the config
+# without needing to export variables in the shell profile
+env_file = Path(__file__).resolve().parent.parent / ".env"
+if env_file.exists():
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, val = line.split("=", 1)
+            os.environ.setdefault(key.strip(), val.strip())
 
 # -- Configuration ----------------------------------------------------------
 
@@ -134,27 +145,35 @@ def fetch_espn_scores(event_id=None):
 def get_tournament_id_from_app(espn_event_id):
     """
     Look up the tournament in the app's database by its ESPN event ID.
+    Uses the /api/find-tournament endpoint for a direct database lookup
+    (no limit on how far back it searches).
     Returns the app's internal tournament UUID, or None if not found.
     """
     print(f"  Looking up ESPN event {espn_event_id} in app database...")
     try:
+        resp = requests.get(f"{APP_URL}/api/find-tournament", params={"external_id": espn_event_id}, timeout=10)
+        data = resp.json()
+        if data.get("found"):
+            t = data["tournament"]
+            print(f"  Found: {t['name']} ({t['id']})")
+            return t["id"]
+    except Exception as e:
+        print(f"  Lookup via /api/find-tournament failed: {e}")
+
+    # Fallback: check the debug endpoint (active tournament + recent 10)
+    try:
         resp = requests.get(f"{APP_URL}/api/debug", timeout=10)
         data = resp.json()
+        active = data.get("active_tournament")
+        if active and active.get("external_id") == str(espn_event_id):
+            print(f"  Found as active tournament: {active['name']} ({active['id']})")
+            return active["id"]
+        for t in data.get("recent_tournaments_in_db", []):
+            if t.get("external_id") == str(espn_event_id):
+                print(f"  Found in recent list: {t['name']} ({t['id']})")
+                return t["id"]
     except Exception as e:
-        print(f"  Could not reach app: {e}")
-        return None
-
-    # Check active tournament first
-    active = data.get("active_tournament")
-    if active and active.get("external_id") == str(espn_event_id):
-        print(f"  Found as active tournament: {active['name']} ({active['id']})")
-        return active["id"]
-
-    # Check recent tournaments list
-    for t in data.get("recent_tournaments_in_db", []):
-        if t.get("external_id") == str(espn_event_id):
-            print(f"  Found in recent tournaments: {t['name']} ({t['id']})")
-            return t["id"]
+        print(f"  Fallback debug lookup failed: {e}")
 
     print(f"  ESPN event {espn_event_id} not found in app database")
     return None

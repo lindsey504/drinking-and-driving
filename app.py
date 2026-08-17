@@ -677,6 +677,33 @@ def debug_status():
     })
 
 
+@app.route("/api/find-tournament")
+def find_tournament():
+    """
+    Look up a tournament by ESPN external_id or name substring.
+    Used by the push-scores script to map ESPN events to app tournament IDs.
+    Example: /api/find-tournament?external_id=401811962
+    Example: /api/find-tournament?name=St.%20Jude
+    """
+    external_id = request.args.get("external_id")
+    name_query = request.args.get("name")
+
+    if external_id:
+        result = supabase.table("tournaments").select("id, name, external_id, start_date, end_date, active").eq("external_id", external_id).limit(1).execute().data
+        if result:
+            return jsonify({"found": True, "tournament": result[0]})
+        return jsonify({"found": False, "searched_by": "external_id", "value": external_id})
+
+    if name_query:
+        # Supabase ilike for partial name match
+        result = supabase.table("tournaments").select("id, name, external_id, start_date, end_date, active").ilike("name", f"%{name_query}%").order("start_date", desc=True).limit(5).execute().data
+        if result:
+            return jsonify({"found": True, "tournaments": result})
+        return jsonify({"found": False, "searched_by": "name", "value": name_query})
+
+    return jsonify({"error": "pass ?external_id=X or ?name=X"}), 400
+
+
 @app.route("/api/push-scores", methods=["POST"])
 def push_scores():
     """
