@@ -632,11 +632,14 @@ def debug_status():
     # When did we last refresh?
     last_refresh_str = _last_score_refresh.isoformat() if _last_score_refresh else "never (since last app restart)"
 
-    # Check ESPN API health
+    # Check ESPN API health with detailed error reporting
     espn_ok = False
     espn_events = []
+    espn_error = None
+    espn_status_code = None
     try:
         r = requests.get(ESPN_SCHEDULE_URL, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        espn_status_code = r.status_code
         espn_ok = r.status_code == 200
         if espn_ok:
             for e in r.json().get("events", []):
@@ -646,8 +649,11 @@ def debug_status():
                     "status": e.get("status", {}).get("type", {}).get("name"),
                     "date": e.get("date")
                 })
-    except Exception:
-        pass
+        else:
+            # Capture what ESPN actually returned so we can diagnose
+            espn_error = f"HTTP {r.status_code}: {r.text[:300]}"
+    except Exception as e:
+        espn_error = str(e)
 
     return jsonify({
         "today": today,
@@ -664,8 +670,86 @@ def debug_status():
         "player_count": player_count,
         "recent_tournaments_in_db": all_tournaments,
         "espn_api_ok": espn_ok,
+        "espn_status_code": espn_status_code,
+        "espn_error": espn_error,
         "espn_current_events": espn_events,
         "scheduler_running": scheduler.running,
+    })
+
+
+@app.route("/api/push-scores", methods=["POST"])
+def push_scores():
+    """
+    Accept scores pushed from an external source (e.g., a cron job running
+    on a machine where ESPN is not blocked). This bypasses the need for the
+    Railway server to reach ESPN directly.
+
+    Expected JSON body:
+    {
+        "tournament_id": "uuid-of-tournament",
+        "scores": [
+            {
+                "player_name": "Scottie Scheffler",
+                "score_to_par": -17,
+                "total_strokes": 263,
+                "round": 4,
+                "cut": false
+            },
+            ...
+        ]
+    }
+
+    Authenticates with the FLASK_SECRET_KEY to prevent random people from
+    posting fake scores. Pass it as ?key=YOUR_SECRET or X-Api-Key header.
+    """
+    # Simple auth check using the app's secret key
+    api_key = request.args.get("key") or request.headers.get("X-Api-Key", "")
+    if api_key != app.secret_key:
+        return jsonify({"status": "unauthorized"}), 401
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "no JSON body"}), 400
+
+    tournament_id = data.get("tournament_id")
+    incoming_scores = data.get("scores", [])
+
+    if not tournament_id or not incoming_scores:
+        return jsonify({"status": "missing tournament_id or scores"}), 400
+
+    # Look up player IDs by name
+    our_players = supabase.table("players").select("id, name").execute().data
+    name_map = {p["name"].lower(): p["id"] for p in our_players}
+
+    updated = 0
+    unmatched = []
+    for entry in incoming_scores:
+        player_name = entry.get("player_name", "")
+        player_id = name_map.get(player_name.lower())
+        if not player_id:
+            unmatched.append(player_name)
+            continue
+
+        row = {
+            "tournament_id": tournament_id,
+            "player_id": player_id,
+            "score_to_par": entry.get("score_to_par", 0),
+            "round": entry.get("round", 1),
+            "cut": entry.get("cut", False),
+        }
+        if entry.get("total_strokes") is not None:
+            row["total_strokes"] = entry["total_strokes"]
+        supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
+        updated += 1
+
+    global _last_score_refresh
+    _last_score_refresh = datetime.now(timezone.utc)
+    logger.info(f"[push-scores] received {len(incoming_scores)} scores, matched {updated}, unmatched {len(unmatched)}")
+
+    return jsonify({
+        "status": "ok",
+        "updated": updated,
+        "unmatched_players": unmatched[:10],
     })
 
 
