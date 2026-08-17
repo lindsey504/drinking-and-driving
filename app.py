@@ -693,6 +693,45 @@ def finalize_tournament(tournament_id):
     })
 
 
+@app.route("/api/refresh-scores/<tournament_id>")
+def refresh_scores_for_tournament(tournament_id):
+    """
+    Manually refresh scores for a specific tournament (even if it is not active).
+    Use this to backfill scores for a past tournament that was missed.
+    Example: /api/refresh-scores/3b40026c-7b30-4bdc-b92d-893dcf4a9fc2
+    """
+    result = supabase.table("tournaments").select("*").eq("id", tournament_id).limit(1).execute().data
+    if not result:
+        return jsonify({"status": "tournament not found"}), 404
+
+    tournament = result[0]
+    if not tournament.get("external_id"):
+        # Try to find the ESPN event ID by syncing
+        fetch_and_sync_tournaments()
+        tournament = supabase.table("tournaments").select("*").eq("id", tournament_id).limit(1).execute().data[0]
+        if not tournament.get("external_id"):
+            return jsonify({"status": "no ESPN external_id on this tournament", "tournament": tournament["name"]}), 400
+
+    scores = fetch_live_scores(tournament["external_id"])
+    if not scores:
+        return jsonify({"status": "ESPN returned 0 matched scores", "tournament": tournament["name"], "external_id": tournament["external_id"], "updated": 0})
+
+    for entry in scores:
+        row = {
+            "tournament_id": tournament["id"],
+            "player_id": entry["player_id"],
+            "score_to_par": entry["score_to_par"],
+            "round": entry["round"],
+            "cut": entry.get("cut", False)
+        }
+        if entry.get("total_strokes") is not None:
+            row["total_strokes"] = entry["total_strokes"]
+        supabase.table("scores").upsert(row, on_conflict="tournament_id,player_id").execute()
+
+    logger.info(f"[backfill] refreshed {len(scores)} scores for '{tournament['name']}'")
+    return jsonify({"status": "ok", "tournament": tournament["name"], "updated": len(scores)})
+
+
 @app.route("/admin/set-lineups/<tournament_id>/<team_id>", methods=["POST"])
 def admin_set_lineups(tournament_id, team_id):
     """Admin endpoint: Set a team's lineup for a tournament. POST with player_ids in JSON body."""
