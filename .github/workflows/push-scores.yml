@@ -1,0 +1,41 @@
+# Push golf scores from ESPN to the Railway app every 15 minutes.
+#
+# WHY: ESPN blocks requests from Railway's cloud IPs, so the app
+# can't fetch scores directly. This workflow runs on GitHub's
+# infrastructure (which ESPN doesn't block) and pushes scores
+# to the app via the /api/push-scores endpoint.
+#
+# SETUP: Add APP_SECRET_KEY as a GitHub Actions secret:
+#   1. Go to github.com/lindsey504/drinking-and-driving/settings/secrets/actions
+#   2. Click "New repository secret"
+#   3. Name: APP_SECRET_KEY
+#   4. Value: (your FLASK_SECRET_KEY from Railway)
+
+name: Push Scores
+
+on:
+  # Run every 15 minutes
+  schedule:
+    - cron: '*/15 * * * *'
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  push-scores:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Push scores to Railway
+        env:
+          APP_URL: https://drinking-and-driving.up.railway.app
+          APP_SECRET_KEY: ${{ secrets.APP_SECRET_KEY }}
+        run: python scripts/push-scores.py
