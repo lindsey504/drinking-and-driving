@@ -1,13 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>Set Lineup — {{ team.name }}</h1>
+<h1>Set Lineup &mdash; {{ team.name }}</h1>
 {% if tournament %}
   <p>Tournament: <strong>{{ tournament.name }}</strong></p>
-  <p>Pick {{ starters_needed }} starters from your roster.</p>
+
+  {# -- Starter counter: shows how many of the required starters
+       are currently checked. Updates live via JavaScript as
+       checkboxes are toggled so the user always knows where
+       they stand. -- #}
+  <div class="lineup-counter" id="lineup-counter">
+    Selected: <strong><span id="starter-count">{{ current_lineup|length }}</span> / {{ starters_needed }}</strong> starters
+  </div>
 
   <form method="POST">
-    <table class="roster">
+    <table>
       <thead>
         <tr>
           <th>Start?</th>
@@ -17,19 +24,49 @@
       </thead>
       <tbody>
         {% for row in roster %}
-        <tr>
+        <tr class="{{ 'starter-selected' if row.player_id in current_lineup }}">
           <td>
             <input type="checkbox" name="starters" value="{{ row.player_id }}"
-              {% if row.player_id in current_lineup %}checked{% endif %}>
+              {% if row.player_id in current_lineup %}checked{% endif %}
+              onchange="updateStarterCount()">
           </td>
-          <td>{{ row.players.name }}</td>
-          <td>{{ row.players.world_rank or '—' }}</td>
+          <td><a href="/player/{{ row.player_id }}">{{ row.players.name }}</a></td>
+          <td>{{ row.players.world_rank or '&mdash;' }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     <button type="submit">Save Lineup</button>
   </form>
+
+  <script>
+  /* Update the starter counter and row highlights when checkboxes change.
+     Also applies visual feedback: green border when exactly right,
+     red border when too many are selected. */
+  function updateStarterCount() {
+    var checked = document.querySelectorAll('input[name="starters"]:checked');
+    var count = checked.length;
+    var needed = {{ starters_needed }};
+    var counter = document.getElementById('lineup-counter');
+    document.getElementById('starter-count').textContent = count;
+
+    /* Reset classes then apply the right one */
+    counter.classList.remove('full', 'over');
+    if (count === needed) counter.classList.add('full');
+    if (count > needed) counter.classList.add('over');
+
+    /* Highlight selected rows */
+    document.querySelectorAll('tbody tr').forEach(function(row) {
+      var cb = row.querySelector('input[type="checkbox"]');
+      if (cb && cb.checked) {
+        row.classList.add('starter-selected');
+      } else {
+        row.classList.remove('starter-selected');
+      }
+    });
+  }
+  </script>
+
 {% else %}
   <p>No active tournament right now. Check back before the next event.</p>
 {% endif %}

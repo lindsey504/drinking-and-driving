@@ -1,216 +1,982 @@
-/* Drinking & Driving — Fantasy Golf */
+/* Drinking & Driving — Fantasy Golf
+ *
+ * Mobile-first responsive design.
+ * Default styles target phones (~375px), then media queries
+ * add complexity for tablets (600px+) and desktops (768px+).
+ */
+
+/* -- Design tokens -------------------------------------------------------- */
 
 :root {
   --green: #2d6a4f;
-  --light-green: #74c69d;
+  --green-light: #74c69d;
+  --green-bg: #f0faf5;
   --cream: #f8f4e3;
   --dark: #1b1b1b;
   --muted: #888;
   --red: #c0392b;
+  --red-bg: #fef2f0;
+  --gold: #d4a017;
+  --white: #ffffff;
+  --border: #e0e0e0;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --transition: 0.2s ease;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* -- Reset & base --------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   background: var(--cream);
   color: var(--dark);
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* -- Navigation ----------------------------------------------------------- */
 
 nav {
   background: var(--green);
-  padding: 1rem 2rem;
+  padding: 0.75rem 1.25rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 nav .logo {
-  color: white;
-  font-size: 1.4rem;
-  font-weight: bold;
+  color: var(--white);
+  font-size: 1.2rem;
+  font-weight: 700;
   text-decoration: none;
+  letter-spacing: -0.01em;
 }
 
-nav .nav-links a {
-  color: var(--light-green);
-  margin-left: 1.5rem;
+/* Hamburger button -- only visible on mobile */
+.nav-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  transition: background var(--transition);
+}
+
+.nav-toggle:hover { background: rgba(255, 255, 255, 0.15); }
+
+.nav-toggle span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--white);
+  border-radius: 1px;
+  transition: transform var(--transition), opacity var(--transition);
+}
+
+/* When menu is open, animate the hamburger into an X */
+.nav-toggle.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.nav-toggle.open span:nth-child(2) { opacity: 0; }
+.nav-toggle.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+/* Nav links -- stacked on mobile, inline on desktop */
+.nav-links {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--green);
+  padding: 0.5rem 0 1rem;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.nav-links.open { display: flex; }
+
+.nav-links a {
+  color: var(--green-light);
+  padding: 0.65rem 1.5rem;
   text-decoration: none;
   font-weight: 500;
+  font-size: 1rem;
+  transition: color var(--transition), background var(--transition);
 }
 
-nav .nav-links a:hover { color: white; }
+.nav-links a:hover {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Active page indicator -- highlights which page you're on */
+.nav-links a.active {
+  color: var(--white);
+  font-weight: 700;
+  border-left: 3px solid var(--green-light);
+  padding-left: calc(1.5rem - 3px);
+}
+
+/* Desktop nav -- inline links, no hamburger */
+@media (min-width: 768px) {
+  nav { padding: 0.75rem 2rem; }
+  nav .logo { font-size: 1.35rem; }
+
+  .nav-toggle { display: none; }
+
+  .nav-links {
+    display: flex !important;
+    position: static;
+    flex-direction: row;
+    background: none;
+    padding: 0;
+    box-shadow: none;
+    gap: 0.25rem;
+  }
+
+  .nav-links a {
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+  }
+
+  .nav-links a.active {
+    border-left: none;
+    padding-left: 0.75rem;
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* -- Main content area ---------------------------------------------------- */
 
 main {
   max-width: 960px;
-  margin: 2rem auto;
-  padding: 0 1.5rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
 }
 
-h1 { font-size: 2rem; margin-bottom: 1rem; color: var(--green); }
-h2 { font-size: 1.3rem; margin: 1.5rem 0 0.75rem; color: var(--dark); }
+@media (min-width: 768px) {
+  main { padding: 2rem 1.5rem; }
+}
+
+/* -- Typography ----------------------------------------------------------- */
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+  color: var(--green);
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 2rem 0 0.75rem;
+  color: var(--dark);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Subtle horizontal rule after h2 headings for visual separation */
+h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin-left: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.3rem; }
+}
+
+/* -- Cards (reusable container) ------------------------------------------- */
+
+.card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+
+/* -- Tables --------------------------------------------------------------- */
+/* On mobile, tables scroll horizontally inside a wrapper.
+ * The .table-wrap class gets added via JS or can be hardcoded. */
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 1.5rem;
-  background: white;
-  border-radius: 8px;
+  background: var(--white);
+  font-size: 0.9rem;
+}
+
+/* When table is NOT inside a .table-wrap, give it its own styling */
+table:not(.table-wrap table) {
+  border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
 }
 
 th {
   background: var(--green);
-  color: white;
-  padding: 0.75rem 1rem;
+  color: var(--white);
+  padding: 0.65rem 0.75rem;
   text-align: left;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 td {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #eee;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  th { padding: 0.75rem 1rem; font-size: 0.8rem; }
+  td { padding: 0.75rem 1rem; }
 }
 
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: #f0faf5; }
-tr.cut td { color: var(--muted); text-decoration: line-through; }
 
-a { color: var(--green); text-decoration: none; }
+tr:hover td {
+  background: var(--green-bg);
+  transition: background var(--transition);
+}
+
+/* Cut players get dimmed and struck through */
+tr.cut td {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+/* -- Score colors --------------------------------------------------------- */
+/* Golf convention: red = over par (bad), green = under par (good) */
+
+.score-under { color: var(--green); font-weight: 600; }
+.score-over { color: var(--red); font-weight: 600; }
+.score-even { color: var(--muted); font-weight: 600; }
+
+/* -- Links & buttons ------------------------------------------------------ */
+
+a { color: var(--green); text-decoration: none; transition: color var(--transition); }
 a:hover { text-decoration: underline; }
 
-button {
+button, .btn {
   background: var(--green);
-  color: white;
+  color: var(--white);
   border: none;
-  padding: 0.5rem 1.2rem;
-  border-radius: 6px;
+  padding: 0.55rem 1.2rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.9rem;
+  font-weight: 600;
+  transition: background var(--transition), transform var(--transition);
 }
 
-button:hover { background: #1f4d38; }
-
-input[type="text"] {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  width: 100%;
-  max-width: 300px;
-  margin-bottom: 1rem;
-  font-size: 0.95rem;
+button:hover, .btn:hover {
+  background: #1f4d38;
+  transform: translateY(-1px);
 }
 
-select {
-  padding: 0.4rem;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  margin-right: 0.5rem;
-}
-
-.major-badge {
-  display: inline-block;
-  background: gold;
-  color: var(--dark);
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-weight: bold;
-  font-size: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.team-card {
-  background: white;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 0.75rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-}
-
-.draft-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 2rem;
-}
-
-.refresh-note {
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin-top: 1rem;
-}
-
-.tournament-list {
-  list-style: none;
-  padding: 0;
-}
-
-.tournament-list li {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #eee;
-  color: var(--muted);
-}
-
-footer {
-  text-align: center;
-  padding: 2rem;
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin-top: 3rem;
-}
+button:active, .btn:active { transform: translateY(0); }
 
 .btn-drop {
   background: none;
   border: 1px solid var(--red);
   color: var(--red);
-  padding: 2px 10px;
-  border-radius: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all var(--transition);
 }
+
 .btn-drop:hover {
   background: var(--red);
-  color: white;
+  color: var(--white);
+  transform: translateY(-1px);
 }
 
-/* Player stats */
-.player-header { margin-bottom: 1.5rem; }
-.player-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
-.badge { background: var(--light-green); color: var(--dark); padding: 3px 10px; border-radius: 20px; font-size: 0.85em; }
-.badge.muted { background: #ddd; }
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-.stat-card { background: var(--cream); border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; }
-.stat-value { font-size: 2rem; font-weight: bold; color: var(--green); }
-.stat-label { font-size: 0.8em; color: var(--muted); margin-top: 4px; }
+/* -- Form elements -------------------------------------------------------- */
 
-/* Course card */
-.course-card { background: var(--green); color: white; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0 1.5rem; }
-.course-info { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; }
-.course-stat { font-size: 0.9em; opacity: 0.95; }
+input[type="text"], input[type="search"] {
+  padding: 0.55rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  transition: border-color var(--transition);
+  background: var(--white);
+}
 
-/* Tee times */
-.tee-card { background: var(--cream); border: 1px solid #ddd; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 0.75rem; }
-.tee-list { list-style: none; padding: 0; margin: 0.5rem 0 0; display: flex; flex-direction: column; gap: 4px; }
-.tee-list li { display: flex; gap: 0.75rem; align-items: center; font-size: 0.9em; }
+input[type="text"]:focus, input[type="search"]:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
+}
+
+select {
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  font-size: 0.9rem;
+  background: var(--white);
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--green);
+}
+
+/* Custom checkbox -- larger, golf-green themed */
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+/* -- Badges --------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--green-bg);
+  color: var(--green);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge.muted { background: #eee; color: var(--muted); }
+
+.major-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #f6d365, #d4a017);
+  color: var(--dark);
+  padding: 0.3rem 0.85rem;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(212, 160, 23, 0.3);
+}
+
+.live-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #166534;
+  padding: 3px 10px;
+  border-radius: 20px;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.final-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 3px 10px;
+  border-radius: 20px;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+
+.preview-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 3px 10px;
+  border-radius: 20px;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+
+/* -- Homepage: Standings -------------------------------------------------- */
+
+.standings-podium {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.podium-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow);
+  transition: transform var(--transition), box-shadow var(--transition);
+  text-decoration: none;
+  color: var(--dark);
+}
+
+.podium-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  text-decoration: none;
+}
+
+/* First place gets a gold left border */
+.podium-card.first {
+  border-left: 4px solid var(--gold);
+  background: linear-gradient(135deg, #fffdf0, var(--white));
+}
+
+.podium-card.second { border-left: 4px solid #a0a0a0; }
+.podium-card.third { border-left: 4px solid #cd7f32; }
+
+.podium-rank {
+  font-size: 1.75rem;
+  line-height: 1;
+  min-width: 2.5rem;
+  text-align: center;
+}
+
+.podium-info { flex: 1; }
+
+.podium-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.podium-manager {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.podium-stats {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.podium-wins {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--green);
+  line-height: 1;
+}
+
+.podium-points {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* -- Homepage: Active tournament banner ----------------------------------- */
+
+.live-banner {
+  background: var(--green);
+  color: var(--white);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.live-banner-text {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.live-banner .btn {
+  background: var(--white);
+  color: var(--green);
+  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+  white-space: nowrap;
+}
+
+.live-banner .btn:hover {
+  background: var(--green-light);
+  color: var(--dark);
+}
+
+/* -- Scoreboard: Past tournament selector --------------------------------- */
+
+.past-nav {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.past-nav label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.past-nav select {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* -- Scoreboard: Course card ---------------------------------------------- */
+
+.course-card {
+  background: linear-gradient(135deg, var(--green), #1f4d38);
+  color: var(--white);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 1rem 0 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.course-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.course-stat {
+  font-size: 0.88rem;
+  opacity: 0.95;
+}
+
+/* -- Scoreboard: Tee times ------------------------------------------------ */
+
+.tee-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.75rem;
+  box-shadow: var(--shadow);
+}
+
+.tee-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tee-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
 .tee-player { flex: 1; }
-.tee-time { font-weight: bold; color: var(--green); }
+.tee-time { font-weight: 700; color: var(--green); }
 .tee-hole { color: var(--muted); font-size: 0.85em; }
-.muted { color: #888; }
 
-/* Live score cards */
-.live-grid { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem; }
-.live-card { background: var(--cream); border: 2px solid #ddd; border-radius: 10px; padding: 1rem 1.25rem; display: grid; grid-template-columns: 2.5rem 1fr auto; grid-template-rows: auto auto; gap: 0.25rem 0.75rem; }
-.live-card.leading { border-color: var(--green); background: #f0faf0; }
-.live-rank { grid-row: 1/3; font-size: 1.75rem; display: flex; align-items: center; }
+/* -- Scoreboard: Live score cards ----------------------------------------- */
+
+.live-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.live-card {
+  background: var(--white);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0.25rem 0.75rem;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.live-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.live-card.leading {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+
+.live-rank {
+  grid-row: 1 / 3;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+}
+
 .live-team { display: flex; flex-direction: column; }
-.live-name { font-weight: bold; font-size: 1.05em; }
-.live-manager { font-size: 0.8em; color: #666; }
-.live-score { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
-.live-stp { font-size: 1.75rem; font-weight: bold; color: var(--green); line-height: 1; }
-.live-strokes { font-size: 0.8em; color: #666; }
-.live-players { grid-column: 2/4; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.25rem; }
-.live-player-chip { background: white; border: 1px solid #ccc; border-radius: 20px; padding: 2px 10px; font-size: 0.8em; }
-.live-player-chip.cut { background: #f5f5f5; color: #aaa; text-decoration: line-through; }
+
+.live-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.live-manager {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.live-score {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.live-stp {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Score-to-par colors on live cards */
+.live-stp.under { color: var(--green); }
+.live-stp.over { color: var(--red); }
+.live-stp.even { color: var(--muted); }
+
+.live-strokes {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.live-players {
+  grid-column: 2 / 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 0.25rem;
+}
+
+.live-player-chip {
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+
+.live-player-chip.cut {
+  background: #f5f5f5;
+  color: #aaa;
+  text-decoration: line-through;
+}
+
+/* Color-coded player chips */
+.live-player-chip.chip-under { border-color: var(--green-light); }
+.live-player-chip.chip-over { border-color: #f5a8a0; }
+
+/* -- Scoreboard: Preview dates -------------------------------------------- */
+
+.preview-dates {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+/* -- Draft page ----------------------------------------------------------- */
+
+.draft-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.draft-layout .teams { order: 2; }
+.draft-layout .available { order: 1; }
+
+/* On desktop, side-by-side layout */
+@media (min-width: 768px) {
+  .draft-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 2rem;
+  }
+  .draft-layout .teams { order: 1; }
+  .draft-layout .available { order: 2; }
+}
+
+/* -- Team cards (draft sidebar) ------------------------------------------- */
+
+.team-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  box-shadow: var(--shadow);
+  transition: transform var(--transition);
+}
+
+.team-card:hover { transform: translateY(-1px); }
+
+/* -- Player profile page -------------------------------------------------- */
+
+.player-header { margin-bottom: 1.5rem; }
+
+.player-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+@media (min-width: 600px) {
+  .stats-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--green);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* -- Lineup page ---------------------------------------------------------- */
+
+.lineup-counter {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lineup-counter strong { color: var(--green); }
+
+.lineup-counter.full { border: 2px solid var(--green); }
+.lineup-counter.over { border: 2px solid var(--red); color: var(--red); }
+
+/* Highlight selected starters in lineup table */
+tr.starter-selected td {
+  background: var(--green-bg);
+}
+
+/* -- Rules page ----------------------------------------------------------- */
+
+.rules {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.rules h2 {
+  margin-top: 1.5rem;
+}
+
+.rules h2:first-child { margin-top: 0; }
+
+.rules ul {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.rules li {
+  margin-bottom: 0.4rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.rules li strong { color: var(--green); }
+
+/* -- Trophy case ---------------------------------------------------------- */
+
+.trophy-table td:nth-child(2) {
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* -- Loading skeleton for HTMX -------------------------------------------- */
+
+.loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.skeleton-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-bar {
+  height: 14px;
+  background: #e8e8e8;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-bar.short { width: 40%; }
+.skeleton-bar.medium { width: 65%; }
+.skeleton-bar.long { width: 85%; }
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* -- Refresh note --------------------------------------------------------- */
+
+.refresh-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* -- Footer --------------------------------------------------------------- */
+
+footer {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 3rem;
+  border-top: 1px solid var(--border);
+}
+
+footer p {
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+/* -- Utilities ------------------------------------------------------------ */
+
+.muted { color: var(--muted); }
+.text-center { text-align: center; }
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+
+/* Schedule type badge */
+.type-major {
+  background: linear-gradient(135deg, #f6d365, #d4a017);
+  color: var(--dark);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.type-regular {
+  background: #eee;
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* -- Responsive table fallback -------------------------------------------- */
+/* On very small screens, allow horizontal scroll for data-heavy tables */
+
+@media (max-width: 599px) {
+  .responsive-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Draft pick form: stack select + button */
+  .draft-layout td form {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .draft-layout td select {
+    width: 100%;
+    margin-right: 0;
+  }
+}

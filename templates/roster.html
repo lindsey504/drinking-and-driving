@@ -3,10 +3,10 @@
 
 <h1>{{ team.name }}</h1>
 <p>Manager: {{ team.manager }}</p>
-<p><a href="/lineup/{{ team.id }}">Set this week's lineup →</a></p>
+<p class="mt-1"><a href="/lineup/{{ team.id }}">Set this week's lineup &rarr;</a></p>
 
-<h2>Roster ({{ players|length }}/{{ 15 }})</h2>
-<table class="roster">
+<h2>Roster ({{ players|length }}/15)</h2>
+<table>
   <thead>
     <tr>
       <th>Player</th>
@@ -19,8 +19,8 @@
     {% for row in players %}
     <tr>
       <td><a href="/player/{{ row.players.id }}">{{ row.players.name }}</a></td>
-      <td>{{ row.players.world_rank or '—' }}</td>
-      <td>{{ row.players.country or '—' }}</td>
+      <td>{{ row.players.world_rank or '&mdash;' }}</td>
+      <td>{{ row.players.country or '&mdash;' }}</td>
       <td>
         <form method="POST" action="/roster/{{ team.id }}/drop/{{ row.id }}" onsubmit="return confirm('Drop {{ row.players.name }}?')">
           <button type="submit" class="btn-drop">Drop</button>

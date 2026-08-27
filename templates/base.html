@@ -3,17 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ league }} ⛳</title>
+  <title>{{ league }}</title>
+
+  <!-- Favicon: golf flag emoji rendered as SVG so we don't need a .ico file -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9971;</text></svg>">
+
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <nav>
-    <a href="/" class="logo">⛳ {{ league }}</a>
-    <div class="nav-links">
-      <a href="/scoreboard">Scoreboard</a>
-      <a href="/draft">Draft</a>
-      <a href="/rules">Rules</a>
+    <a href="/" class="logo">{{ league }}</a>
+
+    <!-- Hamburger toggle button (visible on mobile only) -->
+    <button class="nav-toggle" onclick="this.classList.toggle('open'); document.getElementById('nav-links').classList.toggle('open')" aria-label="Toggle navigation">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <!-- Navigation links with active page highlighting.
+         The "active" class is set by comparing the current request path
+         to each link's href. This is done server-side via Jinja so
+         there's no flash of incorrect state on load. -->
+    <div class="nav-links" id="nav-links">
+      <a href="/" class="{{ 'active' if request.path == '/' }}">Standings</a>
+      <a href="/scoreboard" class="{{ 'active' if '/scoreboard' in request.path }}">Scoreboard</a>
+      <a href="/draft" class="{{ 'active' if request.path == '/draft' }}">Draft</a>
+      <a href="/rules" class="{{ 'active' if request.path == '/rules' }}">Rules</a>
     </div>
   </nav>
 

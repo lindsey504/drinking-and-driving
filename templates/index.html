@@ -3,36 +3,44 @@
 
 <h1>Season Standings</h1>
 
+{# -- Live tournament banner: shows when a tournament is currently active -- #}
+{% set active_t = tournaments | selectattr("active") | list %}
+{% if active_t %}
+<div class="live-banner">
+  <span class="live-banner-text">Live Now: {{ active_t[0].name }}</span>
+  <a href="/scoreboard" class="btn">View Scores</a>
+</div>
+{% endif %}
+
+{# -- Standings as cards instead of a flat table.
+      Cards are easier to scan on mobile and feel more like a
+      leaderboard than a spreadsheet. Each card links to the
+      team's roster page. -- #}
 {% if standings %}
-<table class="standings">
-  <thead>
-    <tr>
-      <th>Rank</th>
-      <th>Team</th>
-      <th>Manager</th>
-      <th>Wins</th>
-      <th>Points</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for team in standings %}
-    <tr>
-      <td>{{ loop.index }}</td>
-      <td><a href="/roster/{{ team.id }}">{{ team.name }}</a></td>
-      <td>{{ team.manager }}</td>
-      <td>{{ team.wins }}</td>
-      <td>{{ team.points }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="standings-podium">
+  {% for team in standings %}
+  {% set place = loop.index %}
+  <a href="/roster/{{ team.id }}" class="podium-card {{ ['first','second','third'][place-1] if place <= 3 }}">
+    <div class="podium-rank">{{ ["🥇","🥈","🥉"][place-1] if place <= 3 else place }}</div>
+    <div class="podium-info">
+      <div class="podium-name">{{ team.name }}</div>
+      <div class="podium-manager">{{ team.manager }}</div>
+    </div>
+    <div class="podium-stats">
+      <div class="podium-wins">{{ team.wins }}</div>
+      <div class="podium-points">{{ team.points }} pts</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
 {% else %}
 <p>No teams yet. Time to draft!</p>
 {% endif %}
 
+{# -- Trophy case: past tournament winners -- #}
 {% if trophy_case %}
-<h2>🏆 Trophy Case</h2>
-<table class="standings">
+<h2>Trophy Case</h2>
+<table class="trophy-table">
   <thead>
     <tr>
       <th>Tournament</th>
@@ -45,24 +53,29 @@
     {% for trophy in trophy_case %}
     <tr>
       <td>{{ trophy.tournament }}</td>
-      <td>🏆 {{ trophy.team }}</td>
+      <td>{{ trophy.team }}</td>
       <td>{{ trophy.manager }}</td>
-      <td>{{ trophy.score }}</td>
+      <td>
+        {# Color-code the winning score #}
+        {% set s = trophy.score %}
+        {% if s and s != 'E' and s != '0' %}
+          {% if s|int < 0 %}<span class="score-under">{{ s }}</span>
+          {% elif s|int > 0 %}<span class="score-over">+{{ s }}</span>
+          {% else %}<span class="score-even">E</span>{% endif %}
+        {% else %}
+          <span class="score-even">E</span>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 {% endif %}
 
-<h2>Schedule</h2>
-
-{% set active_t = tournaments | selectattr("active") | list %}
-{% if active_t %}
-<p>🟢 <strong>LIVE NOW: {{ active_t[0].name }}</strong> — {{ active_t[0].start_date }} to {{ active_t[0].end_date }}</p>
-{% endif %}
-
+{# -- Upcoming schedule -- #}
 {% if upcoming %}
-<table class="standings">
+<h2>Schedule</h2>
+<table>
   <thead>
     <tr>
       <th>Tournament</th>
@@ -71,11 +84,18 @@
     </tr>
   </thead>
   <tbody>
+    {% set majors = ["Masters Tournament", "US Open", "PGA Championship", "The Open Championship"] %}
     {% for t in upcoming %}
     <tr>
       <td>{{ t.name }}</td>
-      <td>{{ t.start_date }} – {{ t.end_date }}</td>
-      <td>{% if t.name in ["Masters Tournament", "US Open", "PGA Championship", "The Open Championship"] %}🏆 Major{% else %}Regular{% endif %}</td>
+      <td>{{ t.start_date }} &ndash; {{ t.end_date }}</td>
+      <td>
+        {% if t.name in majors %}
+          <span class="type-major">Major</span>
+        {% else %}
+          <span class="type-regular">Regular</span>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>

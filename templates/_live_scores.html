@@ -1,9 +1,23 @@
+{# Live/final team score cards.
+   Included by scoreboard.html both directly (final results)
+   and via HTMX polling (live updates every 30 seconds).
+
+   Each card shows:
+   - Rank (medal emoji for top 3)
+   - Team name + manager
+   - Combined score-to-par (color-coded: green=under, red=over)
+   - Individual starter scores as chips #}
+
 {% if team_totals %}
 <div class="live-grid">
   {% for row in team_totals %}
   {% set rank = loop.index %}
   {% set stp = row.total %}
+  {# Format score string: +3, -5, or E for even par #}
   {% set stp_str = ("+%d" % stp) if stp > 0 else ("E" if stp == 0 else "%d" % stp) %}
+  {# Determine color class based on score #}
+  {% set stp_class = "over" if stp > 0 else ("under" if stp < 0 else "even") %}
+
   <div class="live-card {% if rank == 1 %}leading{% endif %}">
     <div class="live-rank">{{ ["🥇","🥈","🥉"][rank-1] if rank <= 3 else rank }}</div>
     <div class="live-team">
@@ -11,19 +25,21 @@
       <span class="live-manager">{{ row.team.manager }}</span>
     </div>
     <div class="live-score">
-      <span class="live-stp">{{ stp_str }}</span>
+      <span class="live-stp {{ stp_class }}">{{ stp_str }}</span>
       {% if row.total_strokes > 0 %}
       <span class="live-strokes">{{ row.total_strokes }} strokes</span>
       {% else %}
-      <span class="live-strokes muted">—</span>
+      <span class="live-strokes muted">&mdash;</span>
       {% endif %}
     </div>
     <div class="live-players">
       {% for p in row.players %}
-      <span class="live-player-chip {% if p.cut %}cut{% endif %}">
+      {# Color-code each player chip based on their individual score #}
+      {% set chip_class = "chip-over" if p.score_to_par > 0 else ("chip-under" if p.score_to_par < 0 else "") %}
+      <span class="live-player-chip {% if p.cut %}cut{% endif %} {{ chip_class }}">
         {{ p.name.split()[-1] }}
-        {% if p.score_to_par != 0 %}
-          {{ ("+%d" % p.score_to_par) if p.score_to_par > 0 else p.score_to_par }}
+        {% if p.score_to_par > 0 %}+{{ p.score_to_par }}
+        {% elif p.score_to_par < 0 %}{{ p.score_to_par }}
         {% else %}E{% endif %}
         {% if p.cut %}<em>CUT</em>{% endif %}
       </span>

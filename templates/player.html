@@ -4,10 +4,10 @@
 <div class="player-header">
   <h1>{{ player.name }}</h1>
   <div class="player-meta">
-    <span class="badge">🌍 {{ player.country or '—' }}</span>
-    <span class="badge">Rank #{{ player.world_rank or '—' }}</span>
+    <span class="badge">{{ player.country or '&mdash;' }}</span>
+    <span class="badge">Rank #{{ player.world_rank or '&mdash;' }}</span>
     {% if team %}
-    <span class="badge">🏌️ {{ team.name }} ({{ team.manager }})</span>
+    <span class="badge">{{ team.name }} ({{ team.manager }})</span>
     {% else %}
     <span class="badge muted">Undrafted</span>
     {% endif %}
@@ -35,7 +35,7 @@
 
 {% if history %}
 <h2>Tournament History</h2>
-<table class="standings">
+<table>
   <thead>
     <tr>
       <th>Tournament</th>
@@ -48,9 +48,20 @@
     {% for h in history %}
     <tr class="{{ 'cut' if h.cut else '' }}">
       <td>{{ h.tournament }}</td>
-      <td>{{ h.score_str }}</td>
+      <td>
+        {# Color-code the score #}
+        {% if h.cut %}
+          <span class="muted">CUT</span>
+        {% elif h.score_str and h.score_str != 'E' %}
+          {% if '-' in h.score_str %}<span class="score-under">{{ h.score_str }}</span>
+          {% elif '+' in h.score_str %}<span class="score-over">{{ h.score_str }}</span>
+          {% else %}<span class="score-even">{{ h.score_str }}</span>{% endif %}
+        {% else %}
+          <span class="score-even">E</span>
+        {% endif %}
+      </td>
       <td>R{{ h.round }}</td>
-      <td>{{ 'CUT' if h.cut else '✅ Made cut' }}</td>
+      <td>{{ 'CUT' if h.cut else 'Made cut' }}</td>
     </tr>
     {% endfor %}
   </tbody>
