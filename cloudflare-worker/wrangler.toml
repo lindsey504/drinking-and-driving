@@ -1,0 +1,8 @@
+name = "golf-score-pusher"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Cron trigger: run every 15 minutes
+# This is built into Cloudflare Workers, no external cron service needed
+[triggers]
+crons = ["*/15 * * * *"]
