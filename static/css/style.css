@@ -171,11 +171,16 @@ main {
 /* -- Typography ----------------------------------------------------------- */
 
 h1 {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 800;
   margin-bottom: 0.75rem;
   color: var(--green);
   letter-spacing: -0.02em;
+  /* Allow the LIVE/FINAL badge to wrap gracefully on narrow screens */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 h2 {
@@ -198,7 +203,7 @@ h2::after {
 }
 
 @media (min-width: 768px) {
-  h1 { font-size: 2rem; }
+  h1 { font-size: 2rem; flex-wrap: nowrap; }
   h2 { font-size: 1.3rem; }
 }
 
@@ -254,12 +259,11 @@ th {
 td {
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid #f0f0f0;
-  white-space: nowrap;
 }
 
 @media (min-width: 768px) {
   th { padding: 0.75rem 1rem; font-size: 0.8rem; }
-  td { padding: 0.75rem 1rem; }
+  td { padding: 0.75rem 1rem; white-space: nowrap; }
 }
 
 tr:last-child td { border-bottom: none; }
@@ -403,7 +407,6 @@ input[type="checkbox"] {
   padding: 3px 10px;
   border-radius: 20px;
   vertical-align: middle;
-  margin-left: 0.5rem;
   animation: pulse-live 2s ease-in-out infinite;
 }
 
@@ -419,8 +422,6 @@ input[type="checkbox"] {
   color: #3730a3;
   padding: 3px 10px;
   border-radius: 20px;
-  vertical-align: middle;
-  margin-left: 0.5rem;
 }
 
 .preview-badge {
@@ -430,8 +431,6 @@ input[type="checkbox"] {
   color: #92400e;
   padding: 3px 10px;
   border-radius: 20px;
-  vertical-align: middle;
-  margin-left: 0.5rem;
 }
 
 /* -- Homepage: Standings -------------------------------------------------- */
@@ -958,17 +957,70 @@ footer p {
   font-weight: 600;
 }
 
-/* -- Responsive table fallback -------------------------------------------- */
-/* On very small screens, allow horizontal scroll for data-heavy tables */
+/* -- Mobile-specific fixes ------------------------------------------------ */
+/* Everything below targets phones and small tablets (under 600px).
+   This is where we fix overflow issues, stack elements vertically,
+   and make sure nothing extends past the screen edge. */
 
 @media (max-width: 599px) {
+
+  /* Tables with many columns: allow horizontal scroll as a last resort */
   .responsive-table {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Draft pick form: stack select + button */
+  /* Trophy case and schedule tables: hide less important columns
+     on mobile to prevent overflow. Manager name and type badge
+     are secondary info that isn't worth horizontal scrolling for. */
+  .trophy-table th:nth-child(3),
+  .trophy-table td:nth-child(3) {
+    display: none;
+  }
+
+  /* Shrink table font on mobile for better fit */
+  table { font-size: 0.82rem; }
+  th { font-size: 0.7rem; padding: 0.5rem 0.6rem; }
+  td { padding: 0.5rem 0.6rem; }
+
+  /* Past tournament selector: stack label above select */
+  .past-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .past-nav select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Live score cards: tighten padding and font sizes */
+  .live-card {
+    padding: 0.75rem 0.85rem;
+    grid-template-columns: 2rem 1fr auto;
+    gap: 0.15rem 0.5rem;
+  }
+
+  .live-rank { font-size: 1.4rem; }
+  .live-name { font-size: 0.95rem; }
+  .live-stp { font-size: 1.4rem; }
+  .live-manager { font-size: 0.75rem; }
+  .live-strokes { font-size: 0.75rem; }
+
+  /* Player chips: start from column 1 (below rank) on mobile
+     so they get the full card width */
+  .live-players {
+    grid-column: 1 / 4;
+    gap: 3px;
+  }
+
+  .live-player-chip {
+    font-size: 0.72rem;
+    padding: 2px 7px;
+  }
+
+  /* Draft pick form: stack select + button vertically */
   .draft-layout td form {
     display: flex;
     flex-direction: column;
@@ -979,4 +1031,27 @@ footer p {
     width: 100%;
     margin-right: 0;
   }
+
+  /* Podium cards: tighten for mobile */
+  .podium-card { padding: 0.75rem 1rem; gap: 0.75rem; }
+  .podium-rank { font-size: 1.4rem; min-width: 2rem; }
+  .podium-name { font-size: 0.95rem; }
+  .podium-wins { font-size: 1.2rem; }
+
+  /* Live banner: stack text and button */
+  .live-banner {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 0.75rem;
+  }
+
+  /* Course card: smaller text */
+  .course-stat { font-size: 0.82rem; }
+
+  /* Rules card: reduce padding */
+  .rules { padding: 1rem; }
+
+  /* Footer: tighter on mobile */
+  footer { padding: 1.5rem 1rem; margin-top: 2rem; }
 }
