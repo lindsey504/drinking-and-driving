@@ -25,10 +25,44 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 
-supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
-)
+# ── Supabase connection ───────────────────────────────────────────────────────
+#
+# WHY service_role AND NOT the anon key:
+#   The anon key is a public, non-secret value: it is designed to be shipped to
+#   browsers. It is only safe when Row Level Security is enforcing access on
+#   every table. Our tables now have RLS enabled with ZERO policies, which is a
+#   deny-everyone stance, so the anon key would get nothing and the app would
+#   break. The service_role key carries the BYPASSRLS attribute, so it is
+#   unaffected by RLS and retains full access.
+#
+# WHY THAT IS SAFE HERE:
+#   service_role is effectively a database admin credential and must NEVER reach
+#   a browser. In this app it never does: every Supabase call lives in this
+#   server-side file, and nothing in templates/ or static/ talks to Supabase.
+#   The browser only ever sees rendered HTML.
+#
+# The SUPABASE_KEY fallback exists so a deploy of this code cannot break
+# production before SUPABASE_SERVICE_ROLE_KEY has been added in Railway. Once
+# that variable is set, remove the old SUPABASE_KEY variable entirely.
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    # Fail loudly at boot rather than throwing confusing errors on every page.
+    raise RuntimeError(
+        "Missing Supabase config. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+    )
+
+if not os.getenv("SUPABASE_SERVICE_ROLE_KEY"):
+    # Surface the insecure-but-working state in the logs so it does not become
+    # permanent. With RLS enabled, an anon key here means every query fails.
+    logger.warning(
+        "SUPABASE_SERVICE_ROLE_KEY is not set; falling back to SUPABASE_KEY. "
+        "If that is the anon key, RLS will deny all queries. Set the service "
+        "role key in Railway."
+    )
+
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # ESPN event ID stored on the tournament row as external_id
 ESPN_LEADERBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?event={event_id}"

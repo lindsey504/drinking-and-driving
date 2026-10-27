@@ -4,3 +4,7 @@ __pycache__/
 .DS_Store
 venv/
 .venv/
+
+# Cloudflare Wrangler local build cache
+.wrangler/
+cloudflare-worker/.wrangler/

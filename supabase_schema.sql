@@ -57,3 +57,24 @@ insert into teams (name, manager) values
   ('Team Tricky', 'Tricky'),
   ('Team 2', 'Player 2'),
   ('Team 3', 'Player 3');
+
+-- ── Lock the tables down (REQUIRED, do not skip) ─────────────────────────────
+--
+-- WHY: tables created without RLS are readable AND writable by anyone holding
+-- the anon key, which is a public, non-secret value. Enabling RLS with no
+-- policies denies everyone except service_role, which bypasses RLS. The Flask
+-- app connects with service_role, so it keeps working; the outside world gets
+-- nothing. See secure-supabase.sql for the full explanation and verification
+-- queries.
+
+alter table teams       enable row level security;
+alter table players     enable row level security;
+alter table roster      enable row level security;
+alter table tournaments enable row level security;
+alter table lineups     enable row level security;
+alter table scores      enable row level security;
+
+revoke all on all tables    in schema public from anon, authenticated;
+revoke all on all sequences in schema public from anon, authenticated;
+alter default privileges in schema public revoke all on tables    from anon, authenticated;
+alter default privileges in schema public revoke all on sequences from anon, authenticated;
